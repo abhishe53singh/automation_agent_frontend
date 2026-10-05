@@ -49,7 +49,7 @@ export function invalidateChat(
   sessionId?: string,
 ): void {
   if (scope === "list") {
-    void queryClient.invalidateQueries({ queryKey: chatKeys.sessions() });
+    void queryClient.invalidateQueries({ queryKey: ["chat", "list"] });
     return;
   }
   if (!sessionId) return;
@@ -58,13 +58,13 @@ export function invalidateChat(
 }
 
 /** GET /api/chat/sessions — the sidebar list (fixtures in mock mode, item 37). */
-export function useSessions(options: { includeArchived?: boolean } = {}) {
+export function useSessions(options: { projectId?: string; includeArchived?: boolean } = {}) {
   return useQuery({
-    queryKey: [...chatKeys.sessions(), options.includeArchived ? "all" : "active"],
+    queryKey: chatKeys.list({ projectId: options.projectId, includeArchived: options.includeArchived }),
     queryFn: ({ signal }) =>
       isMockMode()
         ? mockChat.listSessions({ includeArchived: options.includeArchived })
-        : listSessions({ includeArchived: options.includeArchived }, signal),
+        : listSessions({ projectId: options.projectId, includeArchived: options.includeArchived }, signal),
     staleTime: 30_000,
   });
 }

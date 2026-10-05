@@ -16,14 +16,22 @@ import type { ChatSession } from "../schemas";
  * explicit `include_archived=true`.
  */
 export interface SessionSidebarProps {
+  projectId?: string;
   activeSessionId: string | null;
   onSelect: (sessionId: string) => void;
-  onCreate: (session: ChatSession) => void;
+  onCreate?: (session: ChatSession) => void;
+  onNewChat?: () => void;
 }
 
-export function SessionSidebar({ activeSessionId, onSelect, onCreate }: SessionSidebarProps) {
+export function SessionSidebar({
+  projectId,
+  activeSessionId,
+  onSelect,
+  onCreate,
+  onNewChat,
+}: SessionSidebarProps) {
   const [showArchived, setShowArchived] = React.useState(false);
-  const sessions = useSessions({ includeArchived: showArchived });
+  const sessions = useSessions({ projectId, includeArchived: showArchived });
 
   const list = sessions.data ?? [];
   const active = list.filter((session) => !session.archived_at);
@@ -33,7 +41,17 @@ export function SessionSidebar({ activeSessionId, onSelect, onCreate }: SessionS
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between gap-2 border-b border-border p-3">
         <h2 className="text-sm font-semibold text-foreground">Chats</h2>
-        <NewChatButton onCreated={onCreate} />
+        {onNewChat ? (
+          <button
+            type="button"
+            onClick={onNewChat}
+            className="inline-flex items-center justify-center rounded-md text-xs font-medium h-8 px-2.5 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            New
+          </button>
+        ) : onCreate ? (
+          <NewChatButton onCreated={onCreate} />
+        ) : null}
       </div>
 
       <nav aria-label="Chats" className="flex-1 overflow-y-auto p-2">

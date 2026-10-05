@@ -42,23 +42,27 @@ export interface ButtonProps
 
 /** Presentational button. Styling only — no business logic, semantic tokens
  *  only (see .agent/theme_plan.txt). */
-export function Button({
-  className,
-  variant,
-  size,
-  fullWidth,
-  asChild = false,
-  loading = false,
-  disabled,
-  type,
-  children,
-  ...props
-}: ButtonProps) {
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  {
+    className,
+    variant,
+    size,
+    fullWidth,
+    asChild = false,
+    loading = false,
+    disabled,
+    type,
+    children,
+    ...props
+  },
+  ref,
+) {
   const Comp = asChild ? Slot : "button";
   const isDisabled = disabled || loading;
 
   return (
     <Comp
+      ref={ref}
       // `type` is meaningless on the Slot/child branch, hence the conditional.
       type={asChild ? undefined : (type ?? "button")}
       className={cn(buttonVariants({ variant, size, fullWidth }), className)}
@@ -76,6 +80,7 @@ export function Button({
       )}
     </Comp>
   );
-}
+});
+Button.displayName = "Button";
 
 export { buttonVariants };

@@ -106,7 +106,7 @@ export function RouteTabs({ tabs, className }: RouteTabsProps) {
         return (
           <Link
             key={tab.href}
-            href={tab.href}
+            href={tab.href as any}
             aria-current={active ? "page" : undefined}
             prefetch
             className={cn(

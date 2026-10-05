@@ -41,16 +41,23 @@ import {
  * `["chat","sessions",id]` refreshes the session, its turns AND its messages
  * by prefix — exactly what a freshly submitted turn needs.
  */
+export interface SessionListFilters {
+  projectId?: string;
+  includeArchived?: boolean;
+}
+
 export const chatKeys = {
   all: ["chat"] as const,
-  sessions: () => ["chat", "sessions"] as const,
-  session: (sessionId: string) => ["chat", "sessions", sessionId] as const,
-  turns: (sessionId: string) => ["chat", "sessions", sessionId, "turns"] as const,
+  list: (filters?: SessionListFilters) => ["chat", "list", filters ?? {}] as const,
+  // Keep legacy sessions() alias pointing to list for backward compatibility
+  sessions: (filters?: SessionListFilters) => ["chat", "list", filters ?? {}] as const,
+  session: (sessionId: string) => ["chat", "session", sessionId] as const,
+  turns: (sessionId: string) => ["chat", "session", sessionId, "turns"] as const,
   turnChildren: (sessionId: string, turnId: string) =>
-    ["chat", "sessions", sessionId, "turns", turnId] as const,
-  messages: (sessionId: string) => ["chat", "sessions", sessionId, "messages"] as const,
+    ["chat", "session", sessionId, "turns", turnId] as const,
+  messages: (sessionId: string) => ["chat", "session", sessionId, "messages"] as const,
   response: (sessionId: string, responseId: string) =>
-    ["chat", "sessions", sessionId, "responses", responseId] as const,
+    ["chat", "session", sessionId, "responses", responseId] as const,
 };
 
 const sessionListSchema = z.array(chatSessionSchema);
