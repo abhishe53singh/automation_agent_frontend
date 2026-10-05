@@ -1,0 +1,96 @@
+API COVERAGE MATRIX — backend operation -> BFF route -> module -> screen
+=========================================================================
+Numbers are the upstream entries in .backend_agent/API.md (79 entries / 80
+operations). This file is the LIVE answer to "what exists". Update the row in the
+same commit as the code (D6). contract_check.mjs (phase 4b) enforces it.
+Status: BUILT (works end to end, evidenced) | PARTIAL (gap named) | BLOCKED
+(backend) | TODO.
+BFF paths are camelCase placeholders; upstream is snake_case. Rows marked TODO
+show the PROPOSED BFF path and owning screen so the next session can start
+without re-deriving them.
+
+# | upstream operation | BFF route | module | screen / owner | status | note
+----------------------------------------------------------------------------
+1 | GET / | /api/health | - | (ops) | BUILT
+2 | POST /auth/signup | /api/auth/signup | auth | /register | BUILT | alias /auth/register collapsed
+3 | POST /auth/login | /api/auth/login | auth | /login | BUILT
+4 | POST /auth/forgot-password | /api/auth/forgot-password | auth | /forgot-password | BUILT
+5 | POST /auth/reset-password | /api/auth/reset-password | auth | /reset-password | BUILT
+6 | POST /auth/google | /api/auth/google | auth | /login (Google) | PARTIAL | untestable locally: GOOGLE_CLIENT_ID unset upstream
+7 | POST /auth/refresh | (BFF internal) | server | - | BUILT | single-flight in server/upstream.ts
+8 | POST /auth/logout | /api/auth/logout | auth | Topbar user menu | BUILT
+9 | GET /users/me | /api/users/me, /api/session | users | /settings/profile | BUILT
+10 | PATCH /users/{id}/status | /api/users/[userId]/status | users | /settings/profile (admin) | BLOCKED | ADMIN_EMAILS unset upstream -> 403 for all
+11 | GET /projects | /api/projects | projects | /projects, /dashboard | BUILT
+12 | POST /projects | /api/projects | projects | CreateProjectDialog | BUILT
+13 | GET /projects/{id} | /api/projects/[projectId] | projects | /projects/[id] | BUILT
+14 | PATCH /projects/{id} | /api/projects/[projectId] | projects | ProjectDetailsForm | BUILT
+15 | DELETE /projects/{id} | /api/projects/[projectId] | projects | ProjectDetail | BUILT
+16 | GET /projects/{id}/members | /api/projects/[projectId]/members | projects | MembersPanel | BUILT | move to /projects/[id]/members tab (item 67)
+17 | POST /projects/{id}/members | same | projects | MembersPanel | BUILT
+18 | PATCH /projects/{id}/members/{mid} | /api/projects/[projectId]/members/[memberId] | projects | MemberRoleSelect | BUILT
+19 | DELETE /projects/{id}/members/{mid} | same | projects | MembersPanel | BUILT
+20 | GET /llm/providers | /api/llm/providers | llm | /settings/llm | BUILT
+21 | POST /llm/providers | same | llm | ProviderDialog | BUILT
+22 | GET /llm/providers/{id} | /api/llm/providers/[providerId] | llm | - | BUILT
+23 | PATCH /llm/providers/{id} | same | llm | ProviderDialog | BUILT
+24 | DELETE /llm/providers/{id} | same | llm | ProviderList | BUILT | 409 mapped client-side; backend 500 until fixed
+25 | GET /llm/models | /api/llm/models | llm | ModelList, chat model picker | BUILT
+26 | POST /llm/models | same | llm | ModelDialog | BUILT
+27 | GET /llm/models/{id} | /api/llm/models/[modelId] | llm | - | BUILT
+28 | PATCH /llm/models/{id} | same | llm | ModelDialog | BUILT
+29 | DELETE /llm/models/{id} | same | llm | ModelList | BUILT | 409 mapping
+30 | POST /chat/sessions | /api/chat/sessions | chat | first-send of a new chat | PARTIAL | UI sends only title; must send project_id + model_ids (item 73-75)
+31 | GET /chat/sessions | /api/chat/sessions | chat | chat list (global + project) | PARTIAL | projectId filter never used by UI (item 74)
+32 | GET /chat/sessions/{id} | /api/chat/sessions/[sessionId] | chat | chat header | PARTIAL | every error rendered as Not found (item 79)
+33 | PATCH /chat/sessions/{id} | same | chat | rename/archive | BUILT | used by interim auto-title (item 76)
+34 | DELETE /chat/sessions/{id} | same | chat | SessionRow | BUILT
+35 | PUT /chat/sessions/{id}/models | /api/chat/sessions/[sessionId]/models | chat | ModelSetEditor | BUILT
+36 | PATCH /chat/sessions/{id}/models/{mid} | /api/chat/sessions/[sessionId]/models/[modelId] | chat | ModelSetEditor | BUILT
+37 | POST /chat/sessions/{id}/turns | /api/chat/sessions/[sessionId]/turns | chat | Composer | PARTIAL | double-submit/IME guard missing (item 82)
+38 | GET /chat/sessions/{id}/turns | same | chat | Conversation | PARTIAL | returns ALL turns; client filters (backend_requests/turns-top-level-filter)
+39 | GET /chat/sessions/{id}/messages | /api/chat/sessions/[sessionId]/messages | chat | (unused) | BUILT | candidate for export
+40 | GET /chat/sessions/{id}/responses/{rid} | /api/chat/sessions/[sessionId]/responses/[responseId] | chat | (poll fallback) | BUILT | use for per-response refresh
+41 | PATCH /chat/sessions/{id}/responses/{rid} | same | chat | (adapter write path; not for UI) | BUILT | dev tools only
+42 | GET /chat/sessions/{id}/turns/{tid}/stream | /api/chat/sessions/[sessionId]/turns/[turnId]/stream | chat | use-turn-stream | PARTIAL | no resume after reload; stale state on 2nd turn (items 77-78)
+43 | POST /files | /api/files | knowledge | Files tab upload | TODO | multipart passthrough
+44 | GET /files/supported-types | /api/files/supported-types | knowledge | Files tab hint | TODO | public
+45 | GET /files | /api/files | knowledge | Files tab list | TODO
+46 | GET /files/{id} | /api/files/[fileId] | knowledge | file detail drawer | TODO
+47 | PATCH /files/{id} | same | knowledge | rename/move to project | TODO
+48 | DELETE /files/{id} | same | knowledge | Files tab | TODO
+49 | GET /files/{id}/download | /api/files/[fileId]/download | knowledge | Download action | TODO | stream; 410 gone
+50 | POST /files/{id}/ingest | /api/files/[fileId]/ingest | knowledge | Ingest action | TODO | run_inline default true
+51 | POST /ingestion-jobs | /api/ingestion-jobs | knowledge | queue ingest | TODO
+52 | GET /ingestion-jobs | /api/ingestion-jobs | knowledge | jobs list/progress | TODO | poll
+53 | GET /ingestion-jobs/{id} | /api/ingestion-jobs/[jobId] | knowledge | job detail | TODO | poll
+54 | POST /documents | /api/documents | knowledge | Create from text | TODO
+55 | GET /documents | /api/documents | knowledge | Documents tab | TODO
+56 | GET /documents/{id} | /api/documents/[documentId] | knowledge | document detail | TODO
+57 | PATCH /documents/{id} | same | knowledge | rename/move | TODO
+58 | DELETE /documents/{id} | same | knowledge | Documents tab | TODO
+59 | GET /documents/{id}/chunks | /api/documents/[documentId]/chunks | knowledge | chunk viewer | TODO
+60 | GET /documents/{id}/embeddings | /api/documents/[documentId]/embeddings | knowledge | embeddings (advanced) | TODO
+61 | GET /documents/{id}/chunk-count | /api/documents/[documentId]/chunk-count | knowledge | badge | TODO
+62 | POST /documents/{id}/embeddings (reindex) | /api/documents/[documentId]/embeddings | knowledge | Reindex action | TODO
+63 | POST /knowledge-bases | /api/knowledge-bases | knowledge | KB create | TODO | chunking/embedding fixed at creation
+64 | GET /knowledge-bases | /api/knowledge-bases | knowledge | KB tab | TODO
+65 | GET /knowledge-bases/{id} | /api/knowledge-bases/[kbId] | knowledge | KB detail | TODO
+66 | PATCH /knowledge-bases/{id} | same | knowledge | KB settings | TODO
+67 | DELETE /knowledge-bases/{id} | same | knowledge | KB settings | TODO
+68 | GET /knowledge-bases/{id}/documents | /api/knowledge-bases/[kbId]/documents | knowledge | KB documents | TODO
+69 | PUT /knowledge-bases/{id}/documents | same | knowledge | attach picker (declarative) | TODO | all-or-nothing 404
+70 | PATCH /knowledge-bases/{id}/documents/{did} | same | knowledge | enable/disable | TODO
+71 | DELETE /knowledge-bases/{id}/documents/{did} | same | knowledge | detach | TODO
+72 | POST /knowledge-bases/{id}/search | /api/knowledge-bases/[kbId]/search | knowledge | Search tab | TODO | persists a retrieval
+73 | GET /retrievals | /api/retrievals | knowledge | history | TODO
+74 | GET /retrievals/{id} | /api/retrievals/[retrievalId] | knowledge | history detail | TODO
+75 | GET /retrievals/{id}/results | /api/retrievals/[retrievalId]/results | knowledge | ranked results | TODO
+76 | POST /citations | /api/citations | knowledge | attach citation to response | TODO
+77 | GET /citations | /api/citations | knowledge | citations list | TODO
+78 | GET /citations/{id} | /api/citations/[citationId] | knowledge | citation detail | TODO
+79 | DELETE /citations/{id} | same | knowledge | citation remove | TODO
+
+TOTALS: BLOCKED 1, BUILT 34, PARTIAL 7, TODO 37 (of 79 entries)
+
+NOT IN THE BACKEND YET (do not build UI): integrations/OAuth, MCP, agents, workflows, usage/audit, provider adapters (chat answers) — see phase_6.txt and backend_requests/.

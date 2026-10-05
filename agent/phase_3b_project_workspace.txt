@@ -1,0 +1,33 @@
+PHASE 3b — Project workspace + UI kit  (items 67-72)
+Goal: make projects the home of work (chats, members, later knowledge) and
+build the shared UI kit every later screen needs. Do 70-71 first.
+Specs: screen_specs.txt S1, S3, S4. Rules: ui_guidelines.txt.
+
+70. Page templates in shared/ui (or shared/components): PageHeader (title,
+    description, actions, breadcrumbs slot), PageSection, Tabs (route-driven
+    variant that renders <Link>s and marks aria-current), SplitPane (list/detail
+    with mobile Drawer behaviour), Breadcrumbs. Replace ad-hoc headers in
+    dashboard/projects/settings. Each has a component test + used in >= 2 places.
+71. Primitives (Radix-backed, semantic tokens only): Textarea (auto-grow),
+    DropdownMenu, Tooltip, Drawer/Sheet, ConfirmDialog (names object +
+    consequence), Switch, Checkbox, RelativeTime (<time> + absolute title),
+    CopyButton (moved out of chat Markdown), Avatar (initials), Kbd.
+    Replace hand-rolled Dialog if it lacks focus trap/return. Add deps to
+    current_status. Update shared/ui/index.ts.
+67. Project workspace: src/app/(app)/projects/[projectId]/layout.tsx
+    (server-prefetch useProject; PageHeader + route Tabs). Routes:
+      page.tsx (Overview), chat/ (placeholder -> 4b), members/page.tsx,
+      settings/page.tsx. Move MembersPanel to /members and
+      ProjectDetailsForm + delete to /settings (owner/admin gated by rbac).
+    Old /projects/[id] URL continues to work (it is the Overview).
+    Masked 404 -> Not found panel with no retry. Preserve verify:projects.
+68. Breadcrumbs (Projects > Name > Tab) in the topbar; remove P4/P5 badges and
+    "later phases" copy from Sidebar/navigation; remember last-opened project
+    (localStorage `aa:lastProject`) for "New chat" shortcuts.
+69. Overview: instructions preview (+ Edit if canEdit), recent chats (useSessions
+    projectId, 5) with [New chat], members summary, empty states.
+72. Projects list: search (client filter), sort (recent/name), card meta
+    (updated, role), empty state with primary action, skeleton grid.
+
+Acceptance (phase): at 390px every project tab is reachable; refresh keeps the
+tab; a viewer sees no edit controls; verify:projects still green; D3 walk done.

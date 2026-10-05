@@ -1,0 +1,26 @@
+PHASE 2 — Platform: BFF gateway + auth/session
+10. src/server session cookies: set/clear httpOnly `at` (access) and `rt`
+    (refresh), sameSite=lax, secure in prod; upstream proxy helper that
+    attaches Authorization: Bearer <at> to API_BASE_URL requests
+11. Refresh-on-401 inside the proxy: single-flight mutex (rt rotates —
+    never concurrent refresh), rotate via upstream POST /auth/refresh,
+    set new cookies, retry the upstream call ONCE; second 401 -> clear
+    cookies -> 401 error envelope
+12. /api/auth route handlers: signup, login, logout, forgot-password,
+    reset-password, google (backend Token consumed server-side; browser
+    only ever receives the user + Set-Cookie)
+13. /api/session (upstream /users/me server-side) + proxy.ts guard (Next 16 renamed the middleware convention):
+    unauthenticated -> /login, authenticated away from (auth) routes
+14. shared/lib/api: fetch wrapper (JSON, timeout, abort), ApiError with
+    code mapping (see API_CONTEXT.txt section 3), Zod parse helper
+15. Query provider defaults (staleTime, retry budget, no retry on 4xx) +
+    server prefetch -> HydrationBoundary helper for pages
+16. auth module: RHF+Zod forms for login/register/forgot/reset wired to
+    BFF, error toasts, redirect-to-intended after login
+17. users module: session user, /settings/profile page (read; admin
+    status toggle gated on backend ADMIN_EMAILS behaviour)
+18. Error surfaces: 401 -> login redirect, network failure -> retry UI,
+    every ApiError -> toast; no unhandled rejections
+19. scripts/verify_auth_flow smoke test against the real backend
+    (signup -> login -> session -> refresh -> logout), then update
+    .agent/current_status.txt and .agent/project_future_tasks.txt

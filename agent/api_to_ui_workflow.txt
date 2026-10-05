@@ -1,0 +1,163 @@
+API -> UI WORKFLOW
+==================
+How to turn the backend API + schemas (.backend_agent/API.md) into screens that
+fit the data, validate it, and handle every failure. Follow it per feature.
+
+0. CAPABILITY GATE (agent_process.txt §2) — nothing below starts until the
+   backend demonstrably supports the capability.
+
+1. READ THE CONTRACT (per endpoint, write it down in your task notes)
+   For each entry in .backend_agent/API.md that the feature touches, capture:
+     route + method | auth | query params | request schema | response schema |
+     status codes + meaning | constraints (min/max length, enums, xor rules) |
+     side effects (cascades, rotation, async) | idempotency
+   Probe the live backend once (curl or a scratch script) and compare. If the
+   doc and the server disagree -> the SERVER wins; log it in current_status "Doc
+   drift" and file backend_requests/<slug>.txt if the doc should change.
+
+2. SCHEMAS (src/modules/<m>/schemas.ts) — Zod mirrors the backend 1:1
+   Rules:
+   - Field names stay snake_case exactly as the API sends them. Do NOT rename in
+     the schema; map to view models only in selectors/components if needed.
+   - Nullability is explicit: `T | null` -> `.nullable()`; optional request
+     fields -> `.optional()`; never use `.nullish()` to "be safe".
+   - Enums mirror the backend enum literally (z.enum([...])); add the helper
+     `isFinal`/`label` next to it.
+   - DECIMAL fields arrive as JSON strings: coerce once at the boundary
+     (transform to number) — already done in chat/llm schemas; reuse.
+   - uuid -> z.string().uuid(); datetime -> z.string() (ISO) and format at the
+     view; json objects -> z.record(z.string(), z.unknown()) unless the shape
+     is documented.
+   - Request schemas carry the backend's limits as validation messages
+     (title <= 200, content min 1 / max 20000, ...) so forms show them inline.
+   - Response schemas are STRICT enough to catch drift (unknown extra keys are
+     fine; missing/typed-wrong keys must fail). A parse failure -> ApiError
+     code "upstream" + console.error with the route name (schema-drift alarm).
+   - Export `type X = z.infer<typeof xSchema>`; no hand-written duplicate types.
+   - Fixture JSON for contract tests: copy the example responses from API.md into
+     tests/fixtures/<module>/*.json and test schema.parse(fixture) (see testing doc).
+
+3. ENTITY -> UI MAPPING (do this table in your task notes for every new entity)
+   For each backend entity decide, per field, how it shows up:
+   | field type            | list view            | detail view          | form control                   |
+   | uuid (own id)         | hidden               | short id in details  | n/a                            |
+   | uuid (foreign key)    | resolved to a name   | link to the entity   | Select/Combobox of entities    |
+   | string (short)        | title/secondary text | text                 | Input (maxLength from schema)  |
+   | string (long)         | 1-2 line clamp       | full, markdown if so | Textarea auto-grow             |
+   | nullable string       | "—"                  | "—"                  | empty = send null only if API clears on null |
+   | bool                  | Badge/icon           | Switch (editable)    | Switch                         |
+   | enum                  | Badge w/ label+icon  | Badge                | Select / segmented control     |
+   | int count             | formatted number     | formatted            | numeric Input                  |
+   | decimal money         | Intl currency/units  | Intl                 | numeric Input, step from unit  |
+   | datetime              | relative + title abs | absolute + relative  | date/time picker               |
+   | array<uuid>           | count + avatars/chips| chip list            | multi-select / checkbox list   |
+   | json object           | hidden               | key/value table      | key/value editor or code area  |
+   | secret                | never                | "•••• set"           | write-only + Replace           |
+   | nested entity         | inline summary       | expandable section   | separate flow                  |
+   Also decide for the entity: list (sort, filters, search, pagination), detail,
+   create (minimum fields; everything else defaulted/derived), edit (partial
+   PATCH: send only changed fields; explicit null only where the API clears),
+   delete (cascades named in the confirm), relationships (where it lives in the IA).
+   The CREATE flow asks for the MINIMUM. If the backend allows optional fields,
+   they go behind "More options" or are edited after creation.
+
+4. DERIVE, DON'T ASK (defaults the system must supply)
+   | thing                   | derive from                                              |
+   | chat title              | backend-generated from first message; interim: first sentence of first message (<=60 chars) |
+   | chat project scope      | current route (/projects/:id/...) -> project_id          |
+   | chat models             | user's last-used set -> else all active models; none -> guide to /settings/llm |
+   | project in new KB/file  | current project route                                    |
+   | document title          | file name without extension                              |
+   | sort order              | recency (updated_at desc) unless the user chooses        |
+   | pagination size         | backend default 50; "Load more"                          |
+   | timezone/locale         | browser Intl                                             |
+   | name/handle display     | user.username; avatar initials                           |
+
+5. ERROR MAPPING (src/shared/lib/api/error.ts is the one place)
+   | upstream            | BFF code        | UI                                                    |
+   | 400                 | validation      | inline near the control; message from `detail`        |
+   | 401                 | unauthorized    | one silent refresh (done in BFF); then redirect to /login?next= |
+   | 403                 | forbidden       | "You don't have permission to <verb>" (or hide action) |
+   | 404                 | not_found       | "Not found" page/panel — ONLY here (masked "not yours" too); no Retry |
+   | 409                 | conflict        | inline explanation with the reason ("in use by chat history") |
+   | 410                 | (gone)          | "This file is no longer available"                    |
+   | 413 / 415           | validation      | explain limit/type using GET /files/supported-types   |
+   | 422 (FastAPI list)  | validation      | map each `loc` to a form field; leftovers to form alert|
+   | 429                 | rate_limited    | "Too many requests — retry in Ns" with Retry-After    |
+   | 5xx                 | upstream        | "Something went wrong on our side" + Retry + details  |
+   | network/timeout     | network/timeout | "Can't reach the server" + Retry; keep input          |
+   Rule: the component decides presentation (inline vs toast), the mapping layer
+   decides wording. Do not string-match messages in components.
+
+6. ASYNC / PENDING SERVER WORK (chat responses, ingestion jobs, reindex)
+   Pattern (implement once as shared/hooks/useServerProgress or per module):
+   - The server row has a status enum with terminal values (completed/failed,
+     succeeded/failed/cancelled).
+   - useQuery with `refetchInterval: (q) => anyPending(q.state.data) ? 2000 : false`
+     (+ backoff to 5s after 30s), so polling starts on mount if work is pending —
+     this makes it survive reload/navigation/tab return.
+   - SSE (chat) is an accelerator on top: it patches the cache faster; polling is
+     the safety net when the stream is closed/unsupported.
+   - Show progress text from the data (counts, stage). Cap waiting UX: after a
+     long wait with no change, show an honest hint, not an infinite spinner.
+   - Abort everything on unmount; never leak intervals or streams.
+
+7. CACHE KEYS + INVALIDATION (per module, next to api.ts)
+   - Hierarchical keys: [module], [module, "list", filters], [module, id],
+     [module, id, "children"]. Filters (projectId, includeArchived, q) are part of
+     the key — a list under project A must never be served for project B.
+     (Bug class: key `["chat","sessions"]` + filter object missing.)
+   - One `invalidate<Module>()` map; mutation -> keys it refreshes, documented.
+   - Optimistic updates via onMutate/onError/onSettled with snapshot rollback.
+   - Prefer setQueryData with the mutation response over refetching.
+   - Lists keep previous data while filters change (placeholderData: keepPreviousData).
+   - staleTime by volatility: reference data (llm models) 5 min, lists 30 s,
+     live state (pending responses) 0 + polling.
+
+8. BFF ROUTE CHECKLIST (src/app/api/**)
+   [ ] Thin: parse -> guard -> callUpstream -> normalize. No business rules.
+   [ ] Query params camelCase in, snake_case upstream (projectId -> project_id).
+   [ ] Validate body types minimally; let upstream own the real rules; keep
+       "absent vs null" semantics (omit undefined fields).
+   [ ] Pass through pagination (limit/offset) and filters.
+   [ ] Error envelope via toErrorResponse; map known upstream quirks (RESTRICT FK
+       500 -> 409) in one helper.
+   [ ] Special cases: SSE (no buffering, abort on client disconnect), multipart
+       upload (pass body + boundary unchanged), download (stream + headers).
+   [ ] Never log tokens; API_DEBUG gates body logging.
+   [ ] curl-probed with and without a session (401), and with a foreign id (404).
+   [ ] Row added to api_coverage_matrix.txt.
+
+9. SCREEN BUILD ORDER (for every feature)
+   1. Route + layout skeleton with the PageHeader/Tabs/SplitPane templates.
+   2. Read path: list + detail with real data and all states.
+   3. Create path (minimal fields, derived defaults).
+   4. Edit/delete paths (confirmations, optimistic where safe).
+   5. Relationships (links, scoped lists, pickers).
+   6. Pending/async behaviour.
+   7. Mobile + keyboard + a11y pass.
+   8. Tests + live smoke + UI walk.
+
+10. CONTRACT DRIFT CONTROL
+   - scripts/contract_check.mjs (build it in phase 4b): parses
+     .backend_agent/API.md route headings, the BFF route tree and
+     api_coverage_matrix.txt; fails if a backend operation has no matrix row, a
+     BFF route has no upstream, or a "BUILT" row has no route file.
+   - Run it in D1 for any task that touches BFF routes.
+   - When the mirror .backend_agent/ is updated, re-run it first thing and fix
+     fallout before feature work.
+
+11. WORKED EXAMPLE — "chat inside a project, auto-named"
+   Contract: POST /chat/sessions {title?, project_id?, model_ids?} -> ChatSessionResponse
+             POST /chat/sessions/{id}/turns {content, parent_turn_id?, model_ids?} -> ChatTurnResponse
+             PATCH /chat/sessions/{id} {title?, is_archived?}
+             GET /chat/sessions?project_id=&include_archived=
+   Mapping: project_id (fk) comes from the route; title is nullable and derived;
+            model_ids default from last-used/all-active; content min 1 max 20000.
+   Flow: /projects/:id/chat (empty composer) -> first send -> POST session
+         {project_id, model_ids} -> POST turn -> router.replace(/projects/:id/chat/:sessionId)
+         -> list key [chat,list,{projectId}] invalidated -> title appears from
+         turn response or interim PATCH -> polling/SSE fills answers.
+   Errors: 404 project -> Not found panel; 400 model inactive -> inline
+           "That model is disabled" + open model popover; no models -> EmptyState
+           linking to /settings/llm.

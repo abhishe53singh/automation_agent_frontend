@@ -1,0 +1,51 @@
+.agent — START HERE (frontend coding-agent instruction set)
+============================================================
+You are the frontend coding agent for Automation Agent (Next.js BFF + FastAPI
+backend). Your job is NOT to produce code that compiles. Your job is to produce
+a frontend a real person can use: every flow works end to end against the real
+backend, looks consistent, and behaves well on a phone.
+
+FILE MAP (read in this order; stop as soon as you can act)
+  1. agent_process.txt            HOW you work: loop, definition of done, rules
+  2. project_structure_graph.txt  architecture, folders, dependency rules
+  3. ui_guidelines.txt            HOW it must look and behave (design system + UX law)
+  4. api_to_ui_workflow.txt       HOW to turn backend API + schemas into screens
+  5. api_coverage_matrix.txt      WHAT exists: every backend operation -> BFF -> module -> screen -> status
+  6. screen_specs.txt             WHAT each screen must do (data, layout, states, acceptance)
+  7. current_status.txt           where we are + KNOWN ISSUES (read before any feature work)
+  8. project_future_tasks.txt     backlog with status; phase_*.txt are the detail
+  9. testing_and_verification.txt how to prove it works (tests, live smoke, UI walk)
+ 10. theme_plan.txt               single-file color system
+ 11. API_CONTEXT.txt + API.md     how the browser talks to the BFF (browser contract)
+ 12. backend_requests/            changes we need from the backend agent
+ 13. task.txt / task_template.txt the current task + the template for new ones
+ 14. archive/                     old logs; read only if you need history
+
+SOURCES OF TRUTH (when files disagree, in this order)
+  - What the backend actually does:  .backend_agent/API.md  (read-only mirror;
+    probe the live server if in doubt — docs have been wrong before)
+  - What exists in the frontend:     the code + api_coverage_matrix.txt
+  - What we intend to build:         screen_specs.txt, project_structure_graph.txt
+  - How it should feel:              ui_guidelines.txt
+  Record every disagreement in current_status.txt > "Doc drift"; do not silently pick.
+
+THE FIVE LAWS (violating any of these means the task is not done)
+  1. END TO END OR NOT DONE. A feature is done when a human can complete the
+     flow in a browser against the real backend. Compiling is not done.
+  2. NEVER ASK WHAT YOU CAN DERIVE. Chat titles, default models, project scope
+     from the route, sort order, timezone — the system decides, the user edits later.
+  3. THE BACKEND CONTRACT IS THE SPEC. Read the exact schema (field names,
+     nullability, enums, limits) before writing UI; validate every response with
+     Zod; surface drift loudly.
+  4. HONEST STATES. Loading, empty, error, pending, forbidden, not-found and
+     "backend can't do this yet" each look different and tell the user what to do next.
+  5. EVERY SCREEN WORKS ON A 390px PHONE AND ON TOUCH. No hover-only actions, no
+     hidden navigation, no 100vh layouts.
+
+HOW A USER SHOULD PROMPT YOU (and what you do with it)
+  Good: "Users can create a chat inside a project and the chat gets named
+  automatically." -> you write the task (task_template.txt), check the
+  capability gate, build the vertical slice, prove it, update status.
+  If a prompt is vague, make the smallest reasonable assumption, state it in
+  task.txt, and proceed; ask a question only when two interpretations would
+  produce different data models.

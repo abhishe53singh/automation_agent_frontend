@@ -1,0 +1,11 @@
+BACKEND REQUEST — GET /chat/sessions/{id}/turns contract
+=========================================================
+PROBLEM  API.md #38 says no parent_turn_id => top-level turns; the server returns
+every turn. The frontend filters client-side, which also means it downloads
+branch children it does not display.
+REQUIRED  Either (a) return only turns with parent_turn_id IS NULL when the
+parameter is absent and add `all=true` for everything, or (b) fix the docs.
+Prefer (a). Add `child_count` to ChatTurnResponse so the UI can show a branch
+badge without N extra requests.
+FRONTEND FALLBACK  filter parent_turn_id === null client-side; lazy-load children.
+ACCEPTANCE  list without parent => only roots; with parent => direct children.

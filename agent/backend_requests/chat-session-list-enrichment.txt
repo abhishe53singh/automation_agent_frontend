@@ -1,0 +1,17 @@
+BACKEND REQUEST — data the chat list needs
+==========================================
+PROBLEM  The sidebar can only show title + updated_at + model count. A usable list
+needs a preview and stable ordering, and creating a chat should not require the
+client to guess models.
+REQUIRED
+  - ChatSessionResponse += last_message_preview (<=120 chars), turn_count,
+    last_activity_at. Touch updated_at/last_activity_at on every new turn so
+    ordering by recency is correct. Default ORDER BY last_activity_at DESC.
+  - GET /chat/sessions: support q (title/preview search), limit/offset (documented),
+    and project_id=null semantics (`unscoped=true` returns sessions without project).
+  - POST /chat/sessions with model_ids omitted: attach the caller's default models
+    (users.preferences.default_model_ids) else all active models. Add
+    GET/PATCH /users/me/preferences { default_model_ids?: uuid[] } so "last-used
+    models" survives devices (frontend uses localStorage until then).
+FRONTEND FALLBACK  localStorage `aa:chat:models`; client-side grouping and search.
+ACCEPTANCE  new turn bumps ordering; q filters; omitted model_ids attaches defaults.

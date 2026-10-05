@@ -1,0 +1,29 @@
+NOTE (2026-10-04): this phase shipped PARTIAL. Remediation items 73-88 live in
+phase_4b_chat_remediation.txt; Known issues K1-K17 in current_status.txt.
+
+PHASE 4 — Chat (multi-model, branching, streaming)
+29. BFF routes: /api/chat/** sessions/models/turns/messages/responses
+    (13 upstream ops) + SSE passthrough route for
+    GET .../turns/{turnId}/stream (disable buffering, honor client abort)
+30. chat module: api + hierarchical query keys
+    ([chat],[chat,sessions],[chat,sessions,id,turns]) + mutations map
+31. Chat list + create dialog (title, project scope, model multi-select
+    sourced from the llm module's public index.ts)
+32. Conversation view: chronological turns — user message plus one
+    response card per fan-out model (pending/completed/failed states,
+    tokens/cost/latency badges when present)
+33. Branching UI: turn tree via parent_turn_id — branch indicator,
+    "branch from here" (POST with parent_turn_id), children inspection
+34. Submit turn -> pending responses -> consume SSE with
+    shared/lib/sse (response/done/timeout events, keep-alive, abort on
+    unmount, refresh affected query keys on events)
+35. Session sidebar: model set replace/enable/disable, rename, archive,
+    delete (confirm dialogs; cascade warning)
+36. Markdown rendering + syntax highlighting + copy action for response
+    content; long-thread performance (virtualize if needed)
+37. Fixture mode (NEXT_PUBLIC_MOCK=1) serving canned module data so the
+    chat UI is developable before backend provider adapters exist
+    (backend llm_responses stay `pending` until then — see
+    .backend_agent/current_status.txt)
+38. scripts/verify_chat smoke test (session -> turn -> stream -> branch)
+    + update current_status.txt and project_future_tasks.txt

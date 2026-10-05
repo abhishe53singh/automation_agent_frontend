@@ -1,0 +1,263 @@
+# project_future_tasks.txt — created 2026-10-01 (frontend greenfield)
+# Phase plan split into .agent/phase_1.txt ... .agent/phase_7.txt
+# Legend: [DONE] complete+verified | [PARTIAL] gaps remain
+#         [WIP] drafted, not finished | [TODO] not started
+
+===============================================================
+STATUS SUMMARY (re-audited 2026-10-01, after phase 3 completion)
+===============================================================
+Phases 1-3 are [DONE] and verified against the live backend. Phases
+4-7 are [TODO]. The frontend has its full BFF gateway, cookie session,
+refresh-on-401, a working sign-in/registration round trip, and the
+first real feature modules: projects (+ members/RBAC) and the LLM
+registry, plus a server-prefetched dashboard.
+
+===============================================================
+PHASE 1 — Foundation (.agent/phase_1.txt)              items 1-9  [DONE]
+===============================================================
+   1. Next.js 16 scaffold (TS strict, src/, ESLint, Prettier) .... [DONE]
+       (Next 16.3.8 + React 19.3.0 + TS 6.0.3 + Tailwind 4.3.3 +
+        ESLint 9.39.5 flat config + Prettier 3.9.9; `npm ci` clean)
+   2. Tailwind v4 + single-file theme src/styles/theme.css ....... [DONE]
+       (theme.css sections 2-5 fully populated: brand/neutral/status
+        palettes, semantic light + .dark tokens, @theme inline mapping,
+        radius + font tokens; next-themes light/dark/system toggle;
+        globals.css re-points the `dark:` variant at the .dark class)
+   3. tsconfig strict + @/* alias + npm scripts .................. [DONE]
+       (scripts: dev build start lint lint:fix format format:check
+        typecheck test test:watch analyze)
+   4. Root layout: fonts, metadata, providers .................... [DONE]
+       (next/font Geist + Geist_Mono self-hosted; QueryProvider,
+        ThemeProvider, Toaster in src/providers/)
+   5. shared/ui primitives (semantic tokens only) ............... [DONE]
+       (Button, Input, Card, Badge, Spinner, EmptyState + cn()
+        helper and ThemeToggle)
+   6. (auth) placeholders + (app) shell (sidebar/topbar) ......... [DONE]
+       (login/register/forgot/reset; responsive shell with mobile
+        drawer; dashboard/projects/chat/knowledge/settings pages)
+   7. loading/error/not-found boundaries ......................... [DONE]
+       ((app)/loading+error+not-found, root error/global-error/not-found)
+   8. config/env.ts (Zod) + .env.example + next.config.ts ........ [DONE]
+       (Zod server/client split; .env.example documents both scopes;
+        next.config.ts: strict mode, poweredByHeader:false,
+        typedRoutes, securityHeaders, optimizePackageImports, analyze)
+   9. Verify lint/typecheck/build + light+dark dev walk .......... [DONE]
+       (format 0, typecheck 0, eslint 0, 7 vitest tests pass,
+        build 0 with 12 static routes, dev serves /dashboard 200 and
+        404 for unknown paths; CSS carries tokens + .dark scope; no raw
+        colors outside theme.css except the documented global-error.tsx)
+
+===============================================================
+PHASE 2 — Platform: BFF + auth (.agent/phase_2.txt)    items 10-19 [DONE]
+===============================================================
+  10. src/server cookies (at/rt httpOnly) + upstream proxy ....... [DONE]
+        (session.ts set/clear httpOnly at+rt, sameSite=lax,
+         secure in prod; upstream.ts is the ONLY module that knows
+         API_BASE_URL or attaches Authorization: Bearer <at>)
+  11. Refresh-on-401 single-flight (rotation-safe), retry once ... [DONE]
+        (one shared in-flight /auth/refresh promise — rt rotates so
+         concurrent refreshes would strand the loser; retry ONCE;
+         second 401 clears cookies -> 401 envelope)
+  12. /api/auth/* handlers (signup login logout reset google) .... [DONE]
+        (upstream Token consumed server-side; browser gets { user }
+         + Set-Cookie only; signup also signs in, one round trip)
+  13. /api/session + route guard ................................. [DONE]
+        (/api/session always 200 with user:null when dead; guard is
+         src/proxy.ts — Next 16 renamed `middleware` -> `proxy`; it
+         is cookie-only because it runs on Edge, where next/headers
+         is unavailable; preserves ?next= for redirect-to-intended)
+  14. shared/lib/api: fetch wrapper, ApiError, Zod parse .......... [DONE]
+        (apiFetch/apiJson/apiVoid with timeout + caller signal;
+         ApiError carries the full code map and isTransient; parseWith
+         turns a Zod failure into code "upstream", never silent any)
+  15. Query provider defaults + hydration helpers ................ [DONE]
+        (staleTime 30s; retry budget 2 and ONLY for transient
+         failures, never on a 4xx; QueryCache/MutationCache own the
+         global toast; query-prefetch.tsx -> HydrationBoundary)
+  16. auth module (RHF+Zod forms, toasts, redirect back) ......... [DONE]
+        (react-hook-form 7 + @hookform/resolvers; login/register/
+         forgot/reset; safeNextPath blocks open redirects)
+  17. users module + /settings/profile ............................ [DONE]
+        (session user, /users/me, PATCH status; the toggle is
+         honestly gated because ADMIN_EMAILS lives in the backend
+         env — a 403 explains admin rights are required)
+  18. Error surfaces (401 redirect, network retry, toast) ........ [DONE]
+        (proxy 307 to /login?next=…; inline retry UI on network
+         failure; one toast per failed query/mutation; every form
+         catches its mutation, so no unhandled rejections)
+  19. scripts/verify_auth_flow smoke test vs real backend ........ [DONE]
+        (verify_auth_flow.mjs 27/27 + verify_bff_gateway.mjs 24/24,
+         both against the live FastAPI backend; npm run verify:auth
+         / verify:bff. Also 28 vitest tests, lint/typecheck/build 0)
+
+===============================================================
+PHASE 3 — Projects, members, LLM registry (.agent/phase_3.txt)
+                                                       items 20-28 [TODO]
+===============================================================
+  20. BFF routes: /api/projects/**, /api/llm/**, /api/users/** ... [DONE]
+         (9 project ops + 10 llm ops, all thin parse->guard->callUpstream;
+          /api/users/{id}/status was already in place from phase 2;
+          RESTRICT-FK IntegrityError -> 409 via server/restrict-conflict.ts)
+  21. projects module (keys + invalidation map) .................. [DONE]
+         (schemas.ts rbac.ts api.ts hooks.ts index.ts; keys are
+          ["projects"], ["projects",id], ["projects",id,"members"] so a
+          prefix invalidate of the detail key also refreshes the members;
+          map written out per mutation in invalidateProjects())
+  22. Projects pages: list/create/detail/settings edit ........... [DONE]
+         (/projects cards + CreateProjectDialog; /projects/[projectId]
+          with a partial-PATCH form that sends explicit nulls to clear
+          and omits untouched fields)
+  23. Members UI (invite xor user_id/email, roles, remove) ....... [DONE]
+         (MembersPanel + MemberRoleSelect; the xor and the "owner is not
+          assignable" rule are enforced in the BFF route AND in Zod;
+          the owner row renders disabled, not hidden)
+  24. RBAC UX helpers (canEdit/canManage/canDelete) + 404 mask ... [DONE]
+         (rbac.ts mirrors the backend matrix; AsyncBoundary/ErrorNotice
+          render a masked 404 as "Not found" with no retry affordance)
+  25. llm module + /settings/llm CRUD (409 conflict UX) ......... [DONE]
+         (providers + models, per-million cost fields coerced from the
+          upstream DECIMAL strings; 409 renders as "in use by chat history")
+  26. Dashboard with server prefetch (no client waterfall) ....... [DONE]
+         (PrefetchedBoundary over projectKeys.recent(); quick actions
+          = create project + new chat)
+  27. Empty/loading/error states + skeletons for every surface ... [DONE]
+         (shared/ui AsyncBoundary + Skeleton/SkeletonText + Dialog +
+         Select; skeletons mirror the card/panel/table box models)
+  28. scripts/verify_projects smoke test .......................... [DONE]
+         (create -> invite -> RBAC mask -> partial PATCH -> delete;
+          npm run verify:projects, needs the BFF built and served)
+
+===============================================================
+PHASE 4 — Chat (.agent/phase_4.txt)                    items 29-38 [DONE]
+===============================================================
+  29. BFF /api/chat/** incl. SSE passthrough (no buffering) ..... [DONE]
+         (13 upstream ops: sessions CRUD, PUT/PATCH models, turns,
+          messages, responses GET/PATCH; src/server/upstream-stream.ts
+          returns the raw Response for streaming — callUpstream buffers
+          and would defeat SSE. The route sets X-Accel-Buffering: no +
+          no-transform, and aborts the upstream fetch on client
+          disconnect via request.signal)
+  30. chat module api + hierarchical keys ....................... [DONE]
+         (chatKeys nests ["chat","sessions",id,{turns,messages,responses}]
+          so a prefix invalidate of the session refreshes its turns AND
+          its messages; the invalidation map mirrors the projects module)
+  31. Chat list + create dialog (model multi-select) ............. [DONE]
+         (sidebar + NewChatButton; the model picker reads the llm
+          module's public useModels hook, so there is one source of truth)
+  32. Conversation view: turns + per-model fan-out cards ........ [DONE]
+         (ResponseCard renders pending / completed / failed with
+          tokens/cost/latency badges; >1 model lays out side by side)
+  33. Branching UI (parent_turn_id tree, branch-from-here) ....... [DONE]
+         (children fetched LAZILY per turn and indented under the
+          parent; "branch from here" arms the composer's next send)
+  34. Submit turn -> SSE consume (abort on unmount, invalidate) . [DONE]
+         (shared/lib/sse.ts — a dependency-free fetch+reader SSE client;
+          hand-rolled because EventSource cannot be AbortSignal-bound
+          and auto-reconnects, which would duplicate a finished round.
+          Events patch the cached turn in place, then one invalidate on
+          done/timeout reconciles costs/latency)
+  35. Session sidebar: models/rename/archive/delete .............. [DONE]
+         (SessionRow + ModelSetEditor; attach/detach is DECLARATIVE
+          (PUT) while enable/disable is INCREMENTAL (PATCH) — different
+          upstream semantics, deliberately kept as separate controls)
+  36. Markdown + syntax highlight + copy; pending/failed states .. [DONE]
+         (markdown.ts parser + Markdown.tsx renderer. NO
+          dangerouslySetInnerHTML anywhere: nodes are built from parsed
+          tokens and safeHref rejects javascript:/data: URLs, so
+          untrusted model output cannot execute. Regex token highlighter
+          rather than a per-grammar one — no megabyte dependency)
+  37. Fixture mode NEXT_PUBLIC_MOCK=1 (responses stay pending
+      upstream until backend provider adapters exist) ............ [DONE]
+         (config/env.ts NEXT_PUBLIC_MOCK + isMockMode(); fixtures.ts
+          store + mock-api.ts. Mirrors the real client's failure modes
+          so no component can depend on mock-only behaviour. Off unless
+          the env var is set)
+  38. scripts/verify_chat smoke test ............................. [DONE]
+         (npm run verify:chat: session -> turn -> SSE stream ->
+          branch -> model set -> rename/archive/delete. Asserts a real
+          response row stays `pending`, since no provider adapter exists
+          yet — the live path cannot show a completed card)
+
+===============================================================
+PHASE 5 — Knowledge (.agent/phase_5.txt)               items 39-48 [TODO]
+===============================================================
+  39. BFF: files/jobs/documents/KBs/retrievals/citations (+stream) [TODO]
+  40. knowledge module api + keys ............................... [TODO]
+  41. Files UI: drag-drop upload, progress, download, 413/415 UX . [TODO]
+  42. Ingestion progress polling (status/stage badges) ........... [TODO]
+  43. Documents UI: list, chunks viewer, create-text, reindex .... [TODO]
+  44. KB pages: create (chunking fixed at creation), settings .... [TODO]
+  45. KB documents: PUT replace attach, enable/disable, detach ... [TODO]
+  46. Search UI (ranked results, persisted retrieval id) ......... [TODO]
+  47. Citations: attach/list on responses, grounding badges ....... [TODO]
+  48. scripts/verify_knowledge smoke test ....................... [TODO]
+
+===============================================================
+PHASE 6 — Future domains (.agent/phase_6.txt)          items 49-56 [TODO]
+===============================================================
+  GATED: backend phases 4-7 are TODO (.backend_agent/current_status.txt).
+  49. Gate check before each sub-item ............................ [TODO]
+  50. Integrations UI (Google OAuth connect, connections) ........ [TODO]
+  51. MCP UI (servers, tools, permissions, approvals) ............ [TODO]
+  52. Agents (definitions, runs, steps timeline) ................ [TODO]
+  53. Workflows (definitions, step editor, schedules, runs) ..... [TODO]
+  54. Shared execution-timeline component ....................... [TODO]
+  55. Placeholder routes only until backend endpoints exist ...... [TODO]
+  56. Per-sub-item status updates ............................... [TODO]
+
+===============================================================
+PHASE 7 — Production (.agent/phase_7.txt)              items 57-66 [TODO]
+===============================================================
+  57. Bundle budgets in CI (<180 kB first-load JS) .............. [TODO]
+  58. Performance pass (prefetch, images/fonts, memoization) ..... [TODO]
+  59. Vitest unit/component tests + coverage gate ................ [TODO]
+  60. Playwright e2e (auth, project, chat SSE, knowledge) ........ [TODO]
+  61. CI/CD pipeline (lint typecheck test build size) ............ [TODO]
+  62. Observability (web-vitals, error tracking, /api/health) .... [TODO]
+  63. Security pass (CSP, cookies, npm audit, secrets) .......... [TODO]
+  64. Accessibility (axe, keyboard, contrast AA light+dark) ..... [TODO]
+  65. UX polish (toasts, 429/offline, skeletons, recovery) ...... [TODO]
+  66. Docs + final closeout audit ............................... [TODO]
+
+===============================================================
+CROSS-CUTTING RULES (always true, not phase-gated)
+===============================================================
+R1. Colors live only in src/styles/theme.css (see theme_plan.txt).
+R2. Browser calls /api/** only; JWTs stay in httpOnly cookies.
+R3. Server components first; "use client" at leaves only.
+R4. Zod-validate every upstream response at module boundaries.
+R5. Build UI only for backend capabilities marked DONE in
+    .backend_agent/current_status.txt (phases 4-7 backend are TODO).
+R6. After every session: update current_status.txt, tick this file,
+    refresh task.txt.
+
+===============================================================
+SUGGESTED EXECUTION ORDER FOR THE NEXT SESSION
+===============================================================
+Step 0 — Run the loop in .agent/agent_process.txt; overwrite
+     .agent/task.txt with the next incomplete item (next: Phase 4
+     item 29 — the /api/chat/** BFF routes).
+Step 1 — Phase 4 items 29-30: chat BFF routes (incl. the SSE
+     passthrough with buffering disabled and upstream abort on
+     client disconnect) and src/modules/chat with hierarchical
+     query keys.
+Step 2 — Validate the same way phases 1-3 were validated:
+     npm run format
+     npm run typecheck
+     npx eslint src tests vitest.config.ts next.config.ts
+     npm run test
+     npm run build
+     npm run start -- -p 3100   (with ../backend on port 8000)
+     npm run verify:auth && npm run verify:bff && npm run verify:projects
+Step 3 — Record evidence in current_status.txt, tick items, then
+     proceed to Phase 5 (knowledge).
+
+Tooling note: this terminal harness KILLS long foreground commands.
+Run them detached and poll the log file, e.g.
+  Start-Process cmd -ArgumentList '/c','npm run build > build.log 2>&1 & echo EXIT=%ERRORLEVEL% >> build.log' -WindowStyle Hidden
+Always append an explicit EXIT=%ERRORLEVEL% marker — without it a
+stale log from the previous run reads as success.
+
+Backend regression reference (run from ../backend, not here):
+   see .backend_agent/current_status.txt (phases 1-3 verified;
+   verify_projects/chat/knowledge scripts live in the backend repo).

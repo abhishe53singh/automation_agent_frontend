@@ -1,0 +1,29 @@
+TASK — <one line, user-visible outcome>
+=======================================
+DATE / SESSION   <yyyy-mm-dd, n>
+USER REQUEST     <verbatim>
+ASSUMPTIONS      <what you decided where the request was ambiguous>
+
+GOAL             <one sentence a non-engineer would understand>
+
+ACCEPTANCE       numbered; each checkable in the browser or by a test; include
+                 empty/error/mobile cases
+  1.
+  2.
+
+CAPABILITY GATE  per backend capability: YES (evidence) | NO -> backend_requests/<slug>
+
+OUT OF SCOPE     <what you will not touch>
+
+FILES            <expected changes>
+
+--- fill after finishing ---
+RESULT           what changed
+EVIDENCE
+  D1 lint/typecheck/test/build   <exit codes>
+  D2 live smoke                  <script + counts>
+  D3 UI walk                     | criterion | 1280 light | 1280 dark | 390 light | 390 dark | note |
+  D4 console clean               <yes/no + notes>
+  D5 keyboard/a11y               <notes>
+  D6 docs updated                <list>
+FOLLOW-UPS / NEW KNOWN ISSUES   <list with severity>

@@ -1,0 +1,23 @@
+PHASE 1 — Foundation (scaffold, single-file theme, shell, tooling)
+1. Scaffold Next.js 16 (App Router, TypeScript strict, src/, ESLint
+   next/core-web-vitals, Prettier, npm lockfile committed)
+2. Wire Tailwind CSS v4 and create src/styles/theme.css as the ONLY color
+   file per .agent/theme_plan.txt (palette -> semantic tokens -> .dark ->
+   @theme mapping); globals.css imports tailwind + theme; next-themes for
+   light/dark/system toggle only
+3. tsconfig strict + "@/*" path alias; npm scripts: dev build start lint
+   format typecheck test analyze
+4. Root layout: next/font self-hosted, metadata, providers
+   (QueryProvider, ThemeProvider, Toaster)
+5. shared/ui primitives consuming semantic tokens only: Button, Input,
+   Card, Badge, Spinner, EmptyState (no business logic)
+6. Route groups: (auth) placeholder pages (login/register/forgot/reset)
+   and (app) shell layout (sidebar + topbar, responsive, mobile drawer)
+7. Segment boundaries: loading.tsx / error.tsx / not-found.tsx for (app),
+   plus root error.tsx and global-error.tsx
+8. src/config/env.ts (Zod-validated env, server/client split) +
+   .env.example; next.config.ts: reactStrictMode, poweredByHeader:false,
+   securityHeaders, typedRoutes, optimizePackageImports, analyze hook
+9. Verify: npm run lint / typecheck / build all pass; npm run dev renders
+   the shell in light AND dark with no raw colors outside theme.css;
+   then update .agent/current_status.txt and .agent/project_future_tasks.txt

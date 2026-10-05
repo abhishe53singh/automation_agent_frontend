@@ -1,0 +1,24 @@
+/* Tailwind v4 (CSS-first) + the single theme file.
+   This file must stay import/reset-only — ALL colors live in
+   src/styles/theme.css (.agent/theme_plan.txt). */
+
+@import "tailwindcss";
+@import "../styles/theme.css";
+
+/* Tailwind v4 defaults its `dark:` variant to prefers-color-scheme. We use
+   next-themes, which toggles a `.dark` class on <html> instead, so the variant
+   must be re-pointed at that class. This is configuration, not a color. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans), sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}

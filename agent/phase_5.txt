@@ -1,0 +1,28 @@
+NOTE: screen-level specs for these items are in screen_specs.txt S7; build on the
+templates/primitives from phase 3b (items 70-71) and the async pattern in
+api_to_ui_workflow.txt §6. Every item follows agent_process.txt D1-D6.
+
+PHASE 5 — Knowledge (files, ingestion, documents, KBs, search, citations)
+39. BFF routes: /api/files/** (+ download stream), /api/ingestion-jobs/**,
+    /api/documents/**, /api/knowledge-bases/**, /api/retrievals/**,
+    /api/citations/** (37 upstream ops); multipart passthrough for upload
+40. knowledge module: api + query keys for files/jobs/documents/KBs/
+    retrievals/citations
+41. Files UI: drag-drop upload with progress, list, download, delete;
+    supported-types hint (GET /files/supported-types), 413/415/404 UX
+42. Ingestion progress: poll /api/ingestion-jobs (status/stage badges:
+    pending running succeeded failed), auto-refresh document state
+43. Documents UI: list + status filter, detail with chunk viewer
+    (index/content/counts), create-from-inline-text, reindex action
+44. Knowledge bases: create (embedding provider/model/dim + chunking fixed
+    at creation — surface this in the form), list, detail, settings
+    (default_top_k, min_score, is_active), delete keeps documents note
+45. KB document management: attach via declarative PUT replace (all-or-
+    nothing 404 list UX), enable/disable, detach, document/chunk counts
+46. Search UI: query -> ranked results (score, rank, chunk preview,
+    source document), persisted retrieval id kept for citation flow
+47. Citations: attach grounding citations to model responses
+    (prefer retrieval_result_id picker, quote display), list/get/delete;
+    badges on chat response cards (module-to-module via public index.ts)
+48. scripts/verify_knowledge smoke test (upload -> ingest -> KB -> search
+    -> citation) + update current_status.txt and project_future_tasks.txt

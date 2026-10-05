@@ -1,0 +1,237 @@
+/*
+ * ★ THE ONLY FILE IN THIS PROJECT THAT MAY CONTAIN COLORS ★
+ * Contract: .agent/theme_plan.txt
+ *
+ * Sections, in order:
+ *   1. Header (this comment)
+ *   2. BASE PALETTE        — ★EDIT HERE to re-theme the whole project
+ *   3. SEMANTIC TOKENS     — LIGHT (default scope, references section 2)
+ *   4. SEMANTIC TOKENS     — DARK  (.dark scope, toggled by next-themes)
+ *   5. TAILWIND MAPPING    — @theme inline (token -> utility class)
+ *
+ * STATUS: complete. Section 2 is the single knob — rewriting it re-themes the
+ * whole app (light and dark) with zero component edits.
+ * Components must never hard-code colors; they use the semantic utilities
+ * (bg-background, text-primary, border-border, ...) defined here.
+ *
+ * DOCUMENTED EXCEPTION (theme_plan.txt rule 6): src/app/global-error.tsx uses
+ * neutral grey/blue literals because it replaces the whole document (html/body
+ * included) and therefore cannot rely on this stylesheet being loaded. Those
+ * are the only literals permitted outside this file.
+ */
+
+/* ---------------------------------------------------------------------------
+   2. BASE PALETTE — ★ EDIT HERE (brand, neutrals, success/warning/danger/info)
+   Rewrite this block to re-theme the ENTIRE project. Nothing else changes.
+   --------------------------------------------------------------------------- */
+
+:root {
+  /* brand scale — primary actions, links, focus rings */
+  --brand-50: oklch(0.97 0.014 254);
+  --brand-100: oklch(0.93 0.032 254);
+  --brand-200: oklch(0.88 0.06 254);
+  --brand-300: oklch(0.81 0.1 254);
+  --brand-400: oklch(0.72 0.15 254);
+  --brand-500: oklch(0.64 0.19 254);
+  --brand-600: oklch(0.57 0.21 254);
+  --brand-700: oklch(0.49 0.19 254);
+  --brand-800: oklch(0.42 0.15 254);
+  --brand-900: oklch(0.36 0.11 254);
+  --brand-950: oklch(0.24 0.08 254);
+
+  /* neutrals — surfaces, text, borders (cool slate tint) */
+  --neutral-0: oklch(1 0 0);
+  --neutral-50: oklch(0.985 0.002 254);
+  --neutral-100: oklch(0.967 0.004 254);
+  --neutral-200: oklch(0.928 0.006 254);
+  --neutral-300: oklch(0.871 0.008 254);
+  --neutral-400: oklch(0.704 0.012 254);
+  --neutral-500: oklch(0.556 0.014 254);
+  --neutral-600: oklch(0.439 0.014 254);
+  --neutral-700: oklch(0.372 0.013 254);
+  --neutral-800: oklch(0.279 0.012 254);
+  --neutral-900: oklch(0.208 0.011 254);
+  --neutral-950: oklch(0.145 0.01 254);
+  /* semantic hues — status colors for badges, toasts and charts */
+  --success-300: oklch(0.84 0.15 155);
+  --success-500: oklch(0.7 0.17 155);
+  --success-700: oklch(0.55 0.14 155);
+  --success-900: oklch(0.37 0.09 155);
+
+  --warning-300: oklch(0.87 0.15 85);
+  --warning-500: oklch(0.77 0.16 75);
+  --warning-700: oklch(0.6 0.14 65);
+  --warning-900: oklch(0.4 0.09 60);
+
+  --danger-300: oklch(0.81 0.16 20);
+  --danger-500: oklch(0.65 0.21 25);
+  --danger-700: oklch(0.52 0.19 25);
+  --danger-900: oklch(0.35 0.13 25);
+
+  --info-300: oklch(0.85 0.11 230);
+  --info-500: oklch(0.7 0.13 230);
+  --info-700: oklch(0.55 0.13 230);
+  --info-900: oklch(0.37 0.09 230);
+
+  /* chart series — distinct hues for data visualisation */
+  --chart-1: oklch(0.6 0.19 254);
+  --chart-2: oklch(0.65 0.17 190);
+  --chart-3: oklch(0.7 0.16 150);
+  --chart-4: oklch(0.75 0.15 85);
+  --chart-5: oklch(0.63 0.2 25);
+}
+
+/* ---------------------------------------------------------------------------
+   3. SEMANTIC TOKENS — LIGHT (default scope)
+   These reference section 2. Swap which palette step backs a token here to
+   tune the look without touching components.
+   --------------------------------------------------------------------------- */
+
+:root {
+  --background: var(--neutral-50);
+  --foreground: var(--neutral-900);
+
+  --card: var(--neutral-0);
+  --card-foreground: var(--neutral-900);
+
+  --popover: var(--neutral-0);
+  --popover-foreground: var(--neutral-900);
+
+  --primary: var(--brand-600);
+  --primary-foreground: var(--neutral-0);
+
+  --secondary: var(--neutral-100);
+  --secondary-foreground: var(--neutral-800);
+
+  --muted: var(--neutral-100);
+  --muted-foreground: var(--neutral-500);
+
+  --accent: var(--brand-50);
+  --accent-foreground: var(--brand-800);
+
+  --destructive: var(--danger-700);
+  --destructive-foreground: var(--neutral-0);
+
+  --border: var(--neutral-200);
+  --input: var(--neutral-300);
+  --ring: var(--brand-500);
+
+  --success: var(--success-700);
+  --success-foreground: var(--neutral-0);
+  --warning: var(--warning-700);
+  --warning-foreground: var(--neutral-0);
+  --info: var(--info-700);
+  --info-foreground: var(--neutral-0);
+
+  /* Non-color design tokens (fonts + radius) live here too, so this single
+     file drives the whole look — see .agent/theme_plan.txt rule 4. */
+  --radius: 0.625rem;
+
+  /* Geist (self-hosted by next/font, see src/app/layout.tsx) first, then the
+     system stack. The --font-geist-* variables are injected on <body>. */
+  --font-sans:
+    var(--font-geist-sans), ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+  --font-mono:
+    var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono",
+    monospace;
+}
+
+/* ---------------------------------------------------------------------------
+   4. SEMANTIC TOKENS — DARK (same variable names, dark values)
+   next-themes toggles the `.dark` class on <html>; this block holds no
+   configuration, only colors.
+   --------------------------------------------------------------------------- */
+
+.dark {
+  --background: var(--neutral-950);
+  --foreground: var(--neutral-100);
+
+  --card: var(--neutral-900);
+  --card-foreground: var(--neutral-100);
+
+  --popover: var(--neutral-900);
+  --popover-foreground: var(--neutral-100);
+
+  --primary: var(--brand-400);
+  --primary-foreground: var(--brand-950);
+
+  --secondary: var(--neutral-800);
+  --secondary-foreground: var(--neutral-100);
+
+  --muted: var(--neutral-800);
+  --muted-foreground: var(--neutral-400);
+
+  --accent: var(--brand-950);
+  --accent-foreground: var(--brand-200);
+
+  --destructive: var(--danger-500);
+  --destructive-foreground: var(--neutral-0);
+
+  --border: var(--neutral-800);
+  --input: var(--neutral-700);
+  --ring: var(--brand-500);
+
+  --success: var(--success-500);
+  --success-foreground: var(--neutral-950);
+  --warning: var(--warning-500);
+  --warning-foreground: var(--neutral-950);
+  --info: var(--info-500);
+  --info-foreground: var(--neutral-950);
+}
+
+/* ---------------------------------------------------------------------------
+   5. TAILWIND MAPPING — @theme inline
+   One line per semantic token: this is what makes bg-background, text-primary,
+   border-border, bg-success ... resolve to the variables above.
+   --------------------------------------------------------------------------- */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}

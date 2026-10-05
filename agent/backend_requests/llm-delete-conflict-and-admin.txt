@@ -1,0 +1,9 @@
+BACKEND REQUEST — known carry-over gaps (from .backend_agent/current_status.txt)
+================================================================================
+1. DELETE /llm/providers/{id} and /llm/models/{id} with response history raise an
+   unhandled IntegrityError (500). Return 409 {"detail": "in use by chat history"}.
+   (The BFF already remaps; remove the workaround after the fix.)
+2. ADMIN_EMAILS is unset in .env, so PATCH /users/{id}/status is 403 for everyone.
+   Document and set it for dev.
+3. OpenAPI marks public routes as secured (global BearerAuth). Fix security per
+   operation so generated clients/docs match runtime.

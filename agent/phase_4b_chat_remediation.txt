@@ -1,0 +1,60 @@
+PHASE 4b — Chat remediation  (items 73-88)
+Goal: a person can open a project, start a chat, type a message, see the chat
+named automatically, and read answers — on desktop and phone. Fixes Known issues
+K1-K17 (current_status.txt). Spec: screen_specs.txt S6. UX law: ui_guidelines §13.
+Prerequisites: items 70-71 (templates/primitives) ideally done; backend items
+in backend_requests/ (dev-echo adapter is required to PROVE answers).
+
+73. Lazy-create New chat. Remove the title dialog (NewChatButton becomes a plain
+    button/link). Empty conversation + focused composer. First send:
+    POST session {project_id?, model_ids} -> POST turn -> router.replace(session URL)
+    -> seed caches. Failure handling: keep draft; if session created but turn
+    failed, reuse the session on retry.
+74. Project-scoped routes + one shared ChatWorkspace(projectId?). Routes:
+    /chat, /chat/[sessionId], /projects/[id]/chat, /projects/[id]/chat/[sessionId];
+    redirect legacy /chat?session=. List calls pass projectId. Restructure keys:
+    chatKeys.list(filters) = ["chat","list",{projectId, includeArchived}];
+    chatKeys.session(id) = ["chat","session",id] (+ .turns/.messages/.response).
+    Update invalidateChat so creating/renaming touches only the list or the one session.
+75. Default models. useDefaultModelIds(): last-used from localStorage `aa:chat:models`
+    intersected with active registry models; else all active. No active models ->
+    EmptyState (link /settings/llm) and the composer explains why it is disabled.
+    Persist the set on every successful send/model change.
+76. Auto title. Preferred: use `session_title` from the turn response (backend
+    request chat-title.txt). Until then: deriveTitle(content) (unit-tested) and a
+    SINGLE PATCH when session.title is null and not user-set; never overwrite a
+    user rename. Inline rename in the header (Enter saves, Esc cancels).
+77. Resume. useTurns refetchInterval while anyPending; open SSE for the newest
+    pending turn on mount; SSE patches caches faster, polling is the net.
+78. Per-round state. Key the stream hook by turnId (or reset in the hook
+    via key), header text derives from the newest turn only; "Stop" stops the
+    listener without hiding results.
+79. Error taxonomy. Session/turn load: 404 -> Not found; other -> "Couldn't load
+    this chat" + Retry + details. Never show Not found for 5xx/network.
+80. Responsive. Conversation owns the viewport (h-full flex min-h-0); list is a
+    Drawer below lg opened from a header button; no `vh` units; row actions in a
+    ⋯ DropdownMenu always visible on touch; composer safe-area aware.
+81. Scroll + layout. Stick-to-bottom + "Jump to latest"; answers grid (1/2/3+
+    models; tabs below lg for 3+); skeleton cards for pending.
+82. Composer. Auto-grow textarea; Enter/Shift+Enter; ignore isComposing; guard
+    on isPending; per-session draft; Stop; focus return; 20000 limit counter.
+83. Response card. Honest pending text, backend-gap hint after 10 s, Regenerate
+    (new turn, same content/parent), failed state with Retry, metrics collapsed
+    on mobile, copy.
+84. Chat list. Date groups, search, project chips (global page), inline rename,
+    archive with Undo, delete with named confirmation, selection moves to a
+    neighbor after delete.
+85. Cleanup: SSE patches branch-children cache too; ModelSetEditor re-seeds on
+    models change (key on a hash of attached ids); isMockMode computed once and
+    accepts "1"/"true"; move formatDate to shared/lib/format.ts; remove stale copy.
+86. Tooling: restore tests/ + scripts/ (setup, fixtures, verify_*), rename
+    vitest config to .mts, add scripts/check_repo.mjs and scripts/contract_check.mjs,
+    install Playwright + axe, write the chat-project e2e (desktop + mobile),
+    .gitignore stray files, remove committed .env.local.
+87. verify_chat extension (requires 88): project-scoped create/list isolation,
+    title present after first turn, answers reach `completed`, turns top-level
+    assumption asserted.
+88. Backend dependencies (track, don't implement): backend_requests/dev-echo-adapter.txt,
+    chat-title.txt, turns-top-level-filter.txt, chat-session-list-enrichment.txt.
+
+Phase acceptance = the 10 criteria in screen_specs.txt S6, evidenced per D1-D6.

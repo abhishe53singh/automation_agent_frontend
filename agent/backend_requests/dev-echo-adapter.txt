@@ -1,0 +1,33 @@
+BACKEND REQUEST — responses must complete (dev echo adapter now, real adapters next)
+====================================================================================
+PROBLEM
+  No provider adapter exists, so every llm_response stays `pending` forever. The
+  frontend cannot show an answer, and its smoke test can only assert `pending`.
+
+REQUIRED BEHAVIOUR (step 1: dev echo, small)
+  - Config LLM_DEV_ECHO=true (default true in dev, false in prod).
+  - After POST .../turns returns, a background task processes each pending
+    llm_response of that turn: sleep 0.5-1.5 s (jitter per model), then write via
+    the same service used by PATCH .../responses/{id}: content =
+    "Echo from {model.display_name or name}: {user_message.content}" (markdown ok),
+    status=completed, input/output/total_tokens (approx word count), latency_ms,
+    finish_reason="stop", costs from the model's per-million prices.
+  - Optional: a model named like "*-fail" completes as status=failed with
+    error_message, so the UI failed state is testable.
+  - The SSE stream already emits `response` events when rows change -> unchanged.
+REQUIRED BEHAVIOUR (step 2: real adapters)
+  - app/services/llm/{base.py, openai_compat.py, anthropic.py, ...} with
+    generate(messages, model) -> content/usage; select by provider.name/base_url.
+  - Build messages from the turn's ancestor chain (parent_turn_id) so branches
+    have the right context; prepend project.instructions as the system message when
+    the session has a project_id.
+  - Timeouts, retries, error -> status=failed + error_message; secrets from env.
+
+FRONTEND FALLBACK
+  Honest pending message after 10 s (screen_specs S6); fixture mode for state dev.
+
+ACCEPTANCE
+  - POST turn with 2 models -> both responses reach completed within ~3 s; SSE emits
+    response events then `done`; PATCH remains available
+  - verify_chat (frontend) can assert completed
+DOCS  current_status.txt gap #3, API_CONTEXT.txt

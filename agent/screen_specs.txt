@@ -1,0 +1,195 @@
+SCREEN SPECS — what each screen must do
+=======================================
+Each spec: route | data (module hooks + keys) | layout (desktop / mobile) | states |
+interactions | acceptance. Build against ui_guidelines.txt. Status of each is in
+api_coverage_matrix.txt / project_future_tasks.txt.
+
+---------------------------------------------------------------------------
+S1. APP SHELL + NAVIGATION  (built; fix items 68, 85)
+---------------------------------------------------------------------------
+Sidebar: Dashboard, Projects, Chats, Knowledge, Settings (no phase badges, no
+dev copy). Active state by route prefix. Topbar: menu (mobile), breadcrumbs,
+theme toggle, user menu (profile, sign out).
+Acceptance: 390px drawer opens/closes (Esc, backdrop), focus returns to the menu
+button; breadcrumbs show Projects > <Project name> inside a project.
+
+---------------------------------------------------------------------------
+S2. DASHBOARD  /dashboard  (built; polish)
+---------------------------------------------------------------------------
+Data: useProjects (server-prefetched), useSessions (recent 5).
+Layout: greeting (username), primary actions [New chat] [New project]; "Recent
+chats" and "Recent projects" lists; setup checklist card if no models registered
+("Add a model to start chatting" -> /settings/llm).
+States: each list skeleton/empty/error independently.
+Acceptance: New chat goes to /chat (empty composer) in one click.
+
+---------------------------------------------------------------------------
+S3. PROJECTS LIST  /projects  (built; item 72)
+---------------------------------------------------------------------------
+Data: useProjects. Layout: grid of ProjectCard (name, description clamp, role
+badge, updated relative, member count if available). Search input (client filter),
+sort (recent/name). [New project] opens CreateProjectDialog (name only required).
+Empty: "Create your first project" + action. Mobile: single column cards.
+Acceptance: card click opens the project overview; keyboard focusable.
+
+---------------------------------------------------------------------------
+S4. PROJECT WORKSPACE  /projects/[projectId]/(overview|chat|members|knowledge|settings)  (item 67-69)
+---------------------------------------------------------------------------
+Layout: app/(app)/projects/[projectId]/layout.tsx loads the project once
+(useProject, server-prefetched), renders PageHeader (name, role badge, actions
+[New chat]) and route-driven Tabs: Overview | Chats | Knowledge | Members |
+Settings (Settings only if canEdit; Members visible to all, editing gated by rbac).
+  - Overview: instructions (read-only preview + edit if canEdit), recent chats
+    (5) with [New chat], members summary, knowledge summary (Phase 5), danger
+    zone moved to Settings.
+  - Chats: the ChatWorkspace scoped to this project (see S6).
+  - Members: MembersPanel (existing).
+  - Knowledge: Phase 5 (placeholder EmptyState until then, honest "coming soon"
+    only if hidden tab is not possible — prefer hiding the tab until built).
+  - Settings: ProjectDetailsForm + delete (owner only).
+Masked 404 -> Not found panel (no retry). Tabs are links (prefetch), preserve scroll.
+Acceptance: deep link /projects/:id/chat opens the Chats tab; refresh keeps it;
+a viewer role sees no edit controls; 390px tabs scroll horizontally (no wrap).
+
+---------------------------------------------------------------------------
+S5. LLM SETTINGS  /settings/llm  (built)
+---------------------------------------------------------------------------
+Keep. Add: "Test connection" (when backend supports), mark a model as default
+for new chats (stored as last-used, see S6), hide secrets, show provider health.
+Empty: "Add a provider, then a model" two-step stepper.
+
+---------------------------------------------------------------------------
+S6. CHAT WORKSPACE  /chat and /projects/[projectId]/chat[/sessionId]  (items 73-85)
+---------------------------------------------------------------------------
+ONE shared component (modules/chat/components/ChatWorkspace.tsx) with prop
+`projectId?: string`. The pages are thin wrappers.
+
+ROUTES
+  /chat                              all chats (global); empty composer when none selected
+  /chat/[sessionId]                  open chat (prefer path over ?session= so it is a real route)
+  /projects/[projectId]/chat         project chats; empty composer
+  /projects/[projectId]/chat/[sessionId]
+  (keep /chat?session=<id> as a redirect to the path form for old links)
+
+DATA
+  list      useSessions({ projectId?, includeArchived }) key [chat,"list",{projectId,includeArchived}]
+  session   useSession(id)  (poll when anything pending)
+  turns     useTurns(id)    top-level only (client filter) ; branch children lazily
+  models    useModels() (llm module public index) for the picker/defaults
+  derived   anyPending = turns.some(t => t.llm_responses.some(r => r.status==="pending"))
+
+LAYOUT (desktop >= lg)
+  [ list 18rem | conversation flex-1 ]
+  list: header [Chats] [New chat +]; search; project filter chips (global page
+        only); sections Today / Yesterday / Previous 7 days / Older; archived
+        toggle at the bottom; row = title, relative time, ⋯ menu.
+  conversation: header (title -> inline rename on click/Enter, model chips ->
+        popover, ⋯ menu: archive, delete, export markdown), message scroller,
+        composer (sticky bottom).
+LAYOUT (mobile < lg)
+  conversation only. Header has a [≡ Chats] button opening the list as a left
+  Drawer (same component as the desktop list). [+] new chat in the header.
+  Composer respects safe-area + keyboard (dvh flex column, no position:fixed).
+
+NEW CHAT FLOW (lazy create — NO dialog, NO name prompt)
+  1. [New chat] navigates to /chat or /projects/:id/chat with no session; the
+     conversation shows the empty state + focused composer. Nothing is created.
+  2. On first Send:
+       a. models = last-used set from localStorage `aa:chat:models` (validated
+          against useModels active) else all active models; if none -> block with
+          EmptyState linking to /settings/llm (composer disabled, message says why).
+       b. POST /api/chat/sessions { project_id?, model_ids }   (no title)
+       c. POST .../turns { content }
+       d. router.replace to the session URL (no history entry for the empty state)
+       e. insert session + turn into caches (setQueryData) so UI is instant;
+          invalidate the list key.
+       f. Title: if the turn response has `session_title` -> setQueryData session
+          title; else interim: derive title client-side from content and PATCH
+          once (only when session.title is null and not user-set).
+          deriveTitle(content): strip markdown/code fences/URLs, take first
+          sentence or line, collapse whitespace, trim to <=60 chars at a word
+          boundary, add "…" if cut; empty -> "New chat".
+  3. If step b fails: keep the draft, show inline error under the composer with
+     Retry; if c fails after b succeeded: keep the session, keep the draft, show
+     inline error (don't create a second session on retry).
+  Rename later via inline edit (PATCH title; marks it user-set).
+
+MESSAGES
+  - turn = user bubble + answer cards per model (see ui_guidelines §13.3).
+  - Cards: header (model, status icon, copy, regenerate, ⋯), markdown body,
+    metrics collapsible. Failed -> error text + Retry (regenerate).
+  - Pending: skeleton + "Waiting for <model>…"; after 10 s with no change and no
+    adapter -> "This model hasn't answered yet. The server may not have a provider
+    connected for it." (honest backend-gap), still polling.
+  - Scroll: stick-to-bottom with Jump-to-latest pill.
+  - Branch: ⋯ -> "Branch from here" arms the composer chip; branches collapsible.
+
+COMPOSER
+  Auto-grow textarea; Enter sends / Shift+Enter newline / ignore IME composing;
+  Send disabled when empty or in flight; per-round model override as compact
+  select; Stop (stops listening) while waiting; draft saved per session id;
+  focus returns after send; counter near 20000 chars; error text inline.
+
+STREAM/POLL
+  useTurnResponses(sessionId, turns): if anyPending -> open SSE for the NEWEST
+  pending turn AND poll turns every 2 s (5 s after 30 s) until none pending;
+  SSE events patch both top-level and branch-children caches; stream state is
+  derived per turn (idle/connecting/streaming/done/timeout/error) and the header
+  text reflects ONLY the newest turn. Abort on unmount/session change.
+
+STATES
+  list: skeleton rows / "No chats yet" with Start button / error + Retry
+  conversation: skeleton / empty hero with suggested prompts / error vs not-found
+  distinct (404 -> Not found; others -> "Couldn't load this chat" + Retry)
+
+ACCEPTANCE (all must pass against the live backend with dev-echo adapter)
+  1. From /projects/:id/chat click New chat, type "Summarise the Q3 plan",
+     Enter -> a session appears in THIS project's list titled "Summarise the Q3
+     plan" (or backend title), answers arrive without reload.
+  2. Same flow on /chat creates a session with project_id null.
+  3. Reload mid-answer -> answers still arrive (poll/SSE resumes).
+  4. Second message -> status header shows the new round, not the old "done".
+  5. 390px: can open the list drawer, switch chats, create a chat, send, read
+     answers, all without horizontal scroll; ⋯ menus usable by touch.
+  6. No models registered -> guided empty state; adding a model returns to a
+     working composer.
+  7. Rename inline; archive with Undo; delete with named confirmation.
+  8. Keyboard-only: create, send, switch chat, open menu, rename, delete.
+  9. Double-click Send / holding Enter creates exactly one turn.
+ 10. Network failure on send keeps the draft and shows a retry.
+
+---------------------------------------------------------------------------
+S7. KNOWLEDGE  /projects/[projectId]/knowledge[/(files|documents|bases|search)]  (Phase 5)
+---------------------------------------------------------------------------
+Scope: project-scoped (files/documents/KBs carry project_id). A global
+/knowledge page lists across projects with a project filter.
+Sub-tabs: Files | Documents | Knowledge bases | Search.
+  Files: drag-drop upload zone + [Upload] button; progress per file (XHR/fetch
+    with progress or indeterminate), supported types from GET /files/supported-types
+    (shown as hint + validated client-side), 413/415 inline; list rows: name,
+    size, type, status badge (uploaded/ingesting/ready/failed), actions (Ingest,
+    Download, Rename, Delete). Ingest runs inline by default; for large files
+    queue a job and show progress (poll ingestion-jobs).
+  Documents: list with status filter (pending/parsed/chunked/embedded/failed);
+    detail drawer with metadata, chunk viewer (paged), Reindex, Delete; [New
+    document] from pasted text (title derived from first line unless provided).
+  Knowledge bases: create (name; advanced: embedding provider/model/dimension,
+    chunking — FIXED AFTER CREATION, say so); list; detail with settings
+    (default_top_k, min_score, is_active) and documents panel (attach via
+    multi-select PUT replace — warn that it replaces the set; enable/disable;
+    detach); counts.
+  Search: choose KB, query, ranked results (score, rank, chunk preview with
+    highlighted terms, source doc link); each search persists a retrieval; [Use as
+    citation] on a chat response (S6) attaches via POST /citations with
+    retrieval_result_id.
+Chat integration: response cards show citation badges; clicking opens a popover
+with quote + source document.
+States/acceptance: upload bad type -> clear message listing supported types;
+reload during ingestion keeps polling; KB search with empty KB -> guided empty
+state "Attach documents first".
+
+---------------------------------------------------------------------------
+S8. SETTINGS  /settings/*  (built: profile, llm; add appearance)
+---------------------------------------------------------------------------
+Left sub-nav on desktop, select on mobile. Appearance: theme (light/dark/system),
+density (comfortable/compact; stored locally), reduced motion override.

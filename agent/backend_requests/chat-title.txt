@@ -1,0 +1,34 @@
+BACKEND REQUEST — auto-generate the chat title from the first turn
+===================================================================
+PROBLEM
+  The frontend asks the user to name every chat. chat_sessions.title is nullable
+  and only set via POST/PATCH; nothing generates it. Users expect a chat to be
+  named from what they typed first.
+
+REQUIRED BEHAVIOUR
+  On POST /chat/sessions/{session_id}/turns:
+   1. If this is the FIRST turn of the session (no prior turns) AND the session
+      title is null/empty AND title_source != "user":
+        - set session.title = derive_title(content)  (synchronous, deterministic)
+        - set title_source = "auto"
+        - (later, optional) enqueue a background task that asks a cheap model for a
+          better 3-6 word title and overwrites ONLY if title_source is still "auto".
+   2. Response ChatTurnResponse gains:
+        session_title: str | null           current session title after this call
+        session_title_generated: bool       true only when this call set it
+   3. Titles set via POST /chat/sessions {title} or PATCH {title} set
+      title_source = "user" and are never overwritten.
+   4. ChatSessionResponse gains title_source: "auto" | "user" | null.
+  derive_title(content): strip markdown/code fences/URLs, first sentence or line,
+  collapse whitespace, <= 60 chars cut at a word boundary + "…", empty -> "New chat".
+  (The frontend implements the same function as the interim path; keep the two in
+   sync and unit-test both with the same cases.)
+
+FRONTEND FALLBACK
+  Derive the title client-side from the first message and PATCH once if title is null.
+
+ACCEPTANCE
+  - first turn sets title; second turn does not change it; user title never overwritten
+  - long / markdown / emoji / whitespace-only content yields a sane title
+  - response includes session_title + session_title_generated
+DOCS  API.md #37 and #30-#33 schemas, API_CONTEXT.txt, current_status.txt

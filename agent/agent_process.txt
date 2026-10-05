@@ -1,0 +1,110 @@
+FRONTEND AGENT — OPERATING PROCEDURE
+====================================
+(Replaces the old agent_process.txt. Read 00_START_HERE.txt first.)
+
+0. PRE-FLIGHT (every session, in this order, ~2 minutes)
+   a. git status; git log -5 --oneline; ls tests scripts. If package.json,
+      vitest.config.ts or any doc references a file that does not exist, fix
+      that FIRST (it means a previous session lied or lost work).
+   b. Read current_status.txt > "Known issues". If a P0 is open you may only
+      work on it, or on a task the user explicitly said takes priority.
+   c. Read agent/current_status.txt (capability gate, see 2).
+   d. Confirm the toolchain: npm ci (if lockfile changed), npm run typecheck.
+
+1. READ ORDER FOR THE TASK
+   Follow 00_START_HERE.txt. Do not re-read unchanged files. For the backend
+   contract read ONLY the entries for the capability you touch
+   (agent/API.md headings "### N. ..."), never the whole file.
+
+2. CAPABILITY GATE (before writing UI)
+   For every backend capability the task needs, answer: does the backend do it
+   TODAY? Evidence = an entry in agent/API.md AND a live probe
+   (curl / script) that returned the documented shape.
+     - YES -> build it.
+     - NO  -> do not fake it. Build the frontend against the intended contract
+       behind a clearly labelled state ("Not available yet: ..."), write
+       backend_requests/<slug>.txt (see that folder's README), mark the item
+       [PARTIAL] with the blocker named. Fixture mode (NEXT_PUBLIC_MOCK=1) may
+       be used to develop states, never to claim done.
+
+3. TASK CREATION
+   Convert the user's prompt into ONE vertical slice and OVERWRITE task.txt
+   using task_template.txt. A slice = route + BFF + schema + hook + UI + test +
+   docs, delivering one user-visible outcome. Do not create "layer" tasks
+   ("build all BFF routes first").
+   Size: finishable in one session. If bigger, split and do the first slice.
+
+4. BUILD LOOP (repeat per acceptance criterion)
+   a. Contract: write/extend Zod schemas from the API.md entry (api_to_ui_workflow.txt §2).
+   b. BFF: thin route (parse -> guard -> proxy -> normalize). Probe it with curl.
+   c. Module: api.ts function + query key + hook + invalidation.
+   d. UI: compose from shared/ui primitives per ui_guidelines.txt; implement ALL
+      states (loading, empty, error, pending, forbidden, not-found).
+   e. Test: unit test for schema/hook logic; component test for non-trivial UI.
+   f. Look at it: run npm run dev, open the screen at 1280px AND 390px, light AND
+      dark, click through the acceptance criterion. Fix what looks or feels off
+      BEFORE moving on. (Polishing at the end never happens.)
+
+5. DEFINITION OF DONE (all, in order; paste evidence into task.txt)
+   D1  npm run lint && npm run typecheck && npm run test && npm run build -> exit 0
+   D2  Live smoke: npm run verify:<module> green against the running backend
+       (extend the script for the new flow; it must cover the new path, not only old ones)
+   D3  UI walk (testing_and_verification.txt §5): every acceptance criterion
+       PASS/FAIL with what you clicked; light+dark; 1280px + 390px.
+   D4  Browser console clean (no errors, no React warnings, no failed network
+       calls except ones the test intentionally provokes).
+   D5  Accessibility quick pass: keyboard-only through the flow, visible focus,
+       labels on every control, axe check if Playwright exists.
+   D6  Docs: task.txt result, current_status.txt (table + detail + known
+       issues), project_future_tasks.txt ticks, api_coverage_matrix.txt rows,
+       any stale doc you noticed (fix it, do not leave it).
+   If D2 or D3 was skipped, the item is [PARTIAL], never [DONE]. Say why.
+
+6. STATUS VOCABULARY (use exactly)
+   [DONE]     all of D1-D6 evidenced
+   [PARTIAL]  works in part; the blocker or gap is named in the same line
+   [BLOCKED]  waiting on backend_requests/<slug>; frontend side ready or stubbed
+   [TODO]     not started
+   A status line that cannot name its evidence is not [DONE].
+
+7. HARD RULES (in addition to project_structure_graph.txt "Core design rules")
+   R1  Never ask the user to type something the system can derive (laws #2).
+   R2  The browser calls only /api/*. Never the backend host.
+   R3  Project-scoped screens live under /projects/[projectId]/... and pass the
+       id to every create/list call. A screen that creates an entity offers the parent scope.
+   R4  No raw colors outside theme.css. No arbitrary Tailwind values for color.
+   R5  No `vh` for layout (use dvh / flex / min-h-0). No hover-only controls.
+   R6  Server state lives in TanStack Query; derive "is anything pending" from
+       server data (so it survives reload), never only from component state
+       set at submit time.
+   R7  No cross-module deep imports; shared logic used by 2+ modules moves to shared/.
+   R8  No `any`, no `as unknown as`, no non-null `!` on API data. Parse, don't cast.
+   R9  UI strings: sentence case, verb-first buttons, no internal jargon
+       (BFF, fan-out, adapter, phase, upstream) in anything the user reads.
+   R10 Every mutation has a pending state, an error path that preserves user
+       input, and a success feedback proportional to the action (inline > toast).
+   R11 Do not add a dependency without a line in current_status "Added dependencies"
+       and a reason; prefer Radix primitives for dialogs/menus/tabs/tooltips (a11y).
+   R12 Do not leave debug routes, console.logs, commented-out code, or
+       stray output files (test_out.txt, _tree.txt...) in the repo root.
+
+8. AFTER FINISHING
+   - Overwrite task.txt with: what was done, evidence table (D1-D6), assumptions,
+     follow-ups. Update the other docs listed in D6.
+   - New bug found? Add it to current_status "Known issues" with severity:
+     P0 core flow unusable, P1 degraded/confusing, P2 polish.
+   - Final message to the user: what they can now do (one sentence), what you
+     verified, what is still PARTIAL/BLOCKED and why. No victory claims without D2/D3.
+
+9. WHEN YOU GET STUCK OR THE USER SAYS "IT DOESN'T WORK"
+   Reproduce first (browser + network tab + BFF logs with API_DEBUG=true), find
+   the first failing layer (UI state -> hook -> BFF -> upstream), fix at that
+   layer, add a regression test, and ask whether a doc was wrong. Never "fix"
+   by loosening a schema or hiding the error.
+
+10. ENVIRONMENT NOTES
+   - Long commands get killed by the terminal harness: run detached and poll a
+     log file (current_status.txt > Environment notes).
+   - After chunked edits on long files, re-read the seam; node --check scripts.
+   - Windows + PowerShell redirects write UTF-16: use `| Out-File -Encoding utf8`
+     or `cmd /c "... > out.log 2>&1"`; never commit those logs.

@@ -1,0 +1,68 @@
+# project_future_tasks.txt — backlog (re-audited 2026-10-04)
+Status words: [DONE] [PARTIAL] [BLOCKED] [TODO] (agent_process.txt §6).
+Detail for each phase is in phase_*.txt. Archive of the 2026-10-01 list: archive/.
+
+RECOMMENDED ORDER
+  1. Phase 4b (chat remediation) — K1-K3 are P0. Needs backend dev-echo adapter (item 88).
+  2. Phase 3b (project workspace + UI kit) — 4b depends on items 70-71 (templates, primitives).
+     Practical order: 70-71 -> 67 -> 73-76 -> 77-85 -> 86-87.
+  3. Phase 5 Knowledge, using the same templates.
+  4. Phase 7 hardening; Phase 6 only when backend phases land.
+
+PHASE 1 Foundation (items 1-9) ............................................ [DONE]
+PHASE 2 Platform: BFF + auth (items 10-19) ................................ [DONE]
+PHASE 3 Projects, members, LLM, dashboard (items 20-28) ................... [DONE]
+   (re-verify with verify:projects after the 3b route move)
+
+PHASE 3b Project workspace + UI kit (phase_3b_project_workspace.txt)
+  67. Project workspace layout: /projects/[id]/layout + route Tabs
+      (Overview | Chats | Members | Settings; Knowledge when built) ........ [TODO]
+  68. Breadcrumbs, sidebar copy cleanup (no phase badges), last-used project  [TODO]
+  69. Project Overview: instructions, recent chats, members summary, [New chat] [TODO]
+  70. Page templates: PageHeader, PageSection, Tabs, SplitPane, Breadcrumbs ... [TODO]
+  71. Missing primitives (Radix): Textarea, DropdownMenu, Tooltip, Drawer,
+      ConfirmDialog, Switch, Checkbox, RelativeTime, CopyButton, Avatar ...... [TODO]
+  72. Projects list polish: search, sort, meta, empty state ................ [TODO]
+
+PHASE 4 Chat (original items 29-38)
+  29. BFF /api/chat/** + SSE passthrough .................................... [DONE]
+  30. chat module api + keys ................................................ [PARTIAL] key design K17
+  31. Chat list + create ..................................................... [PARTIAL] superseded by 73-75
+  32. Conversation view ..................................................... [PARTIAL] 81, 83
+  33. Branching UI ......................................................... [PARTIAL] children cache K11
+  34. Submit turn + SSE ................................................... [PARTIAL] 77, 78, 82
+  35. Session sidebar actions ............................................. [PARTIAL] 80, 84
+  36. Markdown + highlight + copy ........................................ [DONE]
+  37. Fixture mode ........................................................ [DONE] (state dev only) K13
+  38. verify_chat ........................................................ [PARTIAL] 87
+
+PHASE 4b Chat remediation (phase_4b_chat_remediation.txt)
+  73. Lazy-create "New chat": no dialog; first send creates session
+      (+project_id, +models) then turn; draft preserved on failure ........ [TODO]
+  74. Project-scoped chat routes + shared ChatWorkspace(projectId); list keys
+      per filter; key restructure (K17) ................................... [TODO]
+  75. Default models (last-used -> all active); no-model guided empty state . [TODO]
+  76. Auto title: backend session_title; interim derive + single PATCH ...... [PARTIAL->BLOCKED on backend for the real thing]
+  77. Resume pending work: poll from server state + SSE accelerator ......... [TODO]
+  78. Per-round stream state; header text reflects newest round ............ [TODO]
+  79. Error taxonomy in chat (404 vs 5xx vs network) + retry ................ [TODO]
+  80. Responsive: list Drawer on mobile, dvh layout, touch-safe row menus ..... [TODO]
+  81. Scroll management (stick/jump), response grid/tabs, skeletons ......... [TODO]
+  82. Composer: autosize, IME/double-submit guards, drafts, Stop, focus ...... [TODO]
+  83. Response card: honest pending/backend-gap, regenerate, metrics toggle .. [TODO]
+  84. Chat list: date groups, search, project chips, inline rename .......... [TODO]
+  85. Cleanup K11-K15 (children cache, model editor key, mock flag, shared formatDate, copy) [TODO]
+  86. Tooling: restore tests/ + scripts/, vitest config, contract_check, check_repo,
+      Playwright smoke (chat in project, desktop+mobile), .gitignore ......... [TODO]
+  87. Extend verify_chat: project-scoped, title, completed answers .......... [BLOCKED on 88]
+  88. Backend dependencies: dev-echo adapter, chat-title, turns filter
+      (tracked in backend_requests/) ....................................... [BLOCKED]
+
+PHASE 5 Knowledge (phase_5.txt; screens in screen_specs.txt S7)
+  39-48 (BFF, module, files UI, ingestion progress, documents, KBs, KB docs,
+  search, citations, verify_knowledge) ..................................... [TODO]
+
+PHASE 6 Future domains (gated) items 49-56 ................................ [BLOCKED]
+
+PHASE 7 Production (items 57-66) .......................................... [TODO]
+   60 Playwright e2e: first slice pulled forward as item 86.

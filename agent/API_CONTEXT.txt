@@ -1,0 +1,107 @@
+PROJECT CONTEXT - AUTOMATION AGENT FRONTEND API LAYER (Next.js)
+===============================================================
+
+Upstream source of truth: .backend_agent/API.md (80 FastAPI operations) and
+.backend_agent/API_CONTEXT.txt. THIS file describes how the frontend
+consumes them. The frontend-owned browser contract lives in .agent/API.md.
+
+1. OVERVIEW
+-----------
+- The browser NEVER calls FastAPI directly. All traffic goes to
+  same-origin Next.js route handlers under /api/** (the BFF gateway,
+  src/app/api/**), which forward to API_BASE_URL (server-only env) with
+  the bearer token read from httpOnly cookies.
+- Layers:
+  src/app/api/**        route handlers (thin): parse -> guard -> proxy ->
+                        normalize; SSE + download streaming passthrough
+  src/server/**         BFF helpers: session cookies (set/clear at/rt),
+                        withAuth() wrapper, upstream fetch + refresh
+                        mutex, error normalization
+  src/modules/<f>/api/  feature-module client: typed fetch to /api/**,
+                        Zod response schemas, TanStack Query keys + hooks
+  src/shared/lib/api    browser fetch wrapper (JSON, timeout, ApiError)
+- This split is the frontend microservices boundary: each module owns its
+  API surface; only src/server knows the upstream host and tokens.
+
+2. SESSION / AUTH FLOW
+----------------------
+- Cookies (set by /api/auth/*; httpOnly, sameSite=lax, secure in prod):
+    at   access token  (backend JWT, ~30 min) -> upstream Authorization
+                                                  header
+    rt   refresh token (backend, default 7 days)
+- Login:  POST /api/auth/login -> backend POST /auth/login -> set at+rt
+          (backend's Token JSON stays server-side; browser gets
+          { user } + Set-Cookie only)
+- Refresh: on any upstream 401, the proxy refreshes via backend
+  POST /auth/refresh (rotation revokes the presented rt), sets new
+  cookies and retries the upstream request ONCE; a second 401 -> clear
+  cookies -> 401 error envelope. Because rt rotates, refresh is
+  single-flight (in-process mutex) — never fire concurrent refreshes.
+- Logout: POST /api/auth/logout -> backend POST /auth/logout -> clear
+  cookies (idempotent; clears cookies even if upstream is unreachable).
+- Session read: GET /api/session -> { user: UserResponse | null,
+  expires_at } by calling upstream GET /users/me server-side; middleware
+  and the (app) layout use it for redirects.
+- Tokens never appear in JS-visible storage (no localStorage /
+  sessionStorage) and are never returned to the browser in JSON.
+
+3. CONVENTIONS
+--------------
+- Error envelope — every /api/** failure returns exactly:
+    { "error": { "code": "str", "message": "str", "status": "int" } }
+  code: unauthorized | forbidden | not_found | validation | conflict |
+        rate_limited | upstream | network | timeout
+  Backend {"detail": "..."} maps into message. Backend masks ownership/
+  role violations as 404 -> code "not_found", rendered as "Not found".
+- Pagination: list routes pass through backend `limit` (1-200, default 50)
+  and `offset` (>=0) query parameters.
+- Partial updates: PATCH bodies send only changed fields (drop undefined;
+  explicit null clears a nullable field — never send null for name-like
+  fields the backend refuses to clear).
+- SSE: GET /api/chat/sessions/{id}/turns/{turnId}/stream proxies
+  text/event-stream with buffering disabled. Events: `response` (data =
+  LlmResponseResponse JSON), `: keep-alive` comments every 1 s, terminal
+  `done` or `timeout` (300 s cap). Client consumption via
+  shared/lib/sse with AbortController on unmount.
+- Uploads: multipart/form-data forwarded unchanged; download is a stream
+  passthrough (Content-Disposition preserved; upstream 410 -> 410).
+- Query keys are hierarchical and defined next to their api function:
+  ['projects'], ['projects', id], ['projects', id, 'members'],
+  ['chat','sessions'], ['chat','sessions', id, 'turns'], …
+- Mutations invalidate via an explicit map; no component-level refetching.
+- All responses are Zod-parsed at the module boundary; a parse failure
+  surfaces as code "upstream" (schema-drift alarm), never silent `any`.
+
+4. UPSTREAM INVENTORY BY FRONTEND MODULE
+----------------------------------------
+  module      BFF prefix                 upstream ops (.backend_agent/API.md)
+  auth        /api/auth/*, /api/session  [B] 8 (register alias collapsed;
+                                              refresh is proxy-internal)
+  users       /api/users/*               [C] 2 (me + admin status)
+  projects    /api/projects/**           [D] 9
+  llm         /api/llm/**                [E] 10
+  chat        /api/chat/** (+stream)     [F] 13
+  knowledge   /api/files/**,
+              /api/ingestion-jobs/**,
+              /api/documents/**,
+              /api/knowledge-bases/**,
+              /api/retrievals/**,
+              /api/citations/**          [G]11 [H]9 [I]10 [J]3 [K]4 = 37
+  —           /api/health                [A] 1 (also pings upstream)
+  TOTAL: 79 BFF routes covering all 80 upstream operations
+  (see .agent/API.md for the full route list)
+
+5. CURRENT STATE (updated 2026-10-04)
+--------------------------------------
+- Built: auth, users, projects(+members), llm registry, chat BFF routes and
+  UI. Not built: knowledge BFF routes and UI (see .agent/api_coverage_matrix.txt
+  for the per-operation status — that file is the live source for "what exists").
+- Chat caveat: the backend has no provider adapter, so responses stay `pending`
+  until backend_requests/dev-echo-adapter.txt (or a real adapter) ships.
+- Backend phases 4-7 (integrations, MCP, agents, workflows, production
+  extras) are TODO per .backend_agent/current_status.txt; their modules and BFF
+  routes are created only in .agent/phase_6.txt.
+- Pending contract changes the frontend is designed for (do not assume they
+  exist until .backend_agent/API.md lists them): see .agent/backend_requests/.
+
+END OF CONTEXT

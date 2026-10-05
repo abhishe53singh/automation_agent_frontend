@@ -1,0 +1,93 @@
+TESTING AND VERIFICATION
+========================
+Goal: prove features work for a human, not just that code compiles. The old
+process stopped at lint/typecheck/build and shipped a chat that could not be
+used. This file defines the proof you must produce (agent_process.txt D1-D5).
+
+1. LAYERS
+   L1 Static            lint, typecheck, format:check, build          (D1)
+   L2 Unit/contract     Vitest: schemas vs fixtures, pure helpers, hooks
+   L3 Component         Vitest + Testing Library (+ msw) for non-trivial UI
+   L4 Live smoke        scripts/verify_<module>.mjs against the REAL backend (D2)
+   L5 E2E browser       Playwright against a seeded backend+frontend            (D3/D4)
+   L6 Human-style walk  the UI walk (section 5) — always, even with L5
+
+2. REPO HYGIENE (fix first; the zip you received lacked these)
+   - tests/ and scripts/ MUST exist and be committed. package.json scripts must
+     point at existing files. CI/D1 includes `node scripts/check_repo.mjs`
+     (fails if a script path in package.json does not exist).
+   - vitest.config.ts -> rename vitest.config.mts (or "type":"module") to remove
+     the ESM-in-CJS warning. Keep `globals: true`; tests must not import from "vitest".
+   - .gitignore: test_out.txt, test_err.txt, tsc_out.txt, _tree.txt, *.log,
+     .env.local, playwright-report/, test-results/, .next/.
+   - PowerShell logs are UTF-16: write with `| Out-File -Encoding utf8` or use
+     `cmd /c`.
+
+3. UNIT / CONTRACT TESTS (L2)  tests/unit/<module>/*.test.ts
+   - For every response schema: fixtures from API.md examples in
+     tests/fixtures/<module>/*.json; `expect(schema.parse(fixture)).toBeTruthy()`;
+     plus a "drift" test (missing required key -> throws).
+   - Request schemas: boundary values (200/201 chars, empty, whitespace).
+   - Pure helpers: deriveTitle (markdown, code fence, URL, very long, empty,
+     unicode/emoji), sessionLabel, rbac, groupByDate, applyResponseEvent
+     (top-level AND branch children), anyPending.
+   - Hooks: use a QueryClient wrapper; assert keys (list key includes projectId),
+     invalidation map, optimistic rollback.
+
+4. COMPONENT TESTS (L3)  tests/integration/*.test.tsx
+   - Composer: Enter sends once; Shift+Enter newline; IME composing ignored;
+     double click sends once; failed send keeps the draft.
+   - NewChat flow: first send calls createSession({project_id, model_ids}) then
+     createTurn; no title dialog rendered.
+   - ChatWorkspace: session 404 -> Not found; 500 -> retry panel (not "Not found").
+   - SessionRow menu is reachable without hover (render with matchMedia hover:none).
+   - Use msw (or a fetch mock) at the /api boundary, never mock the hooks being tested.
+
+5. UI WALK (L6) — mandatory evidence for every UI task
+   Start `npm run dev` (backend running; dev-echo adapter on for chat). For EACH
+   acceptance criterion record in task.txt:
+   | criterion | 1280 light | 1280 dark | 390 light | 390 dark | notes |
+   with PASS/FAIL. Then run section 14 of ui_guidelines.txt. Use the browser
+   devtools device toolbar for 390x844; also resize to 768. Check:
+     - keyboard only for the flow; focus visible; Esc closes overlays
+     - network tab: no failed requests, no duplicate requests, no requests to the
+       backend host (only /api/*)
+     - console: no errors/warnings
+     - reload on every deep link: same view restored
+     - slow network (Fast 3G) and offline once: skeletons, retry, no crashes
+   If you can drive a browser (Playwright MCP / screenshot tool), capture
+   screenshots to .agent/evidence/<task>/ (gitignored) and reference them.
+
+6. PLAYWRIGHT E2E (L5)  tests/e2e/*.spec.ts  (introduce in phase 4b, not phase 7)
+   - Config: baseURL http://localhost:3100 (next start), projects: chromium
+     desktop (1280x800) + mobile (iPhone 14 viewport), `trace: on-first-retry`.
+   - Global setup: sign up a fresh user via the BFF, register a provider + model
+     (dev-echo), save storageState.
+   - Specs (one per core flow): auth (signup/login/logout), projects (create,
+     invite, role mask), chat-project (create chat in project, title appears,
+     answer appears, reload resumes, 2nd message), chat-mobile (drawer, switch
+     chat), knowledge (phase 5: upload -> ingest -> search -> cite).
+   - Use @axe-core/playwright on each key page; zero serious/critical violations.
+   - Console guard fixture: fail the test on console.error / pageerror.
+   - Package scripts: `test:e2e`, `test:e2e:ui`.
+
+7. LIVE SMOKE SCRIPTS (L4)  scripts/verify_*.mjs
+   - Pattern: ESM node script, base URL env, own cookie jar, numbered checks,
+     `SUMMARY total=N failed=M`, exit code != 0 on failure.
+   - Extend verify_chat for: session with project_id appears under
+     ?projectId=<id> and NOT under another project; first-turn title;
+     responses reach `completed` (needs dev-echo adapter); turns top-level
+     filter assumption (assert the backend behaviour so a change is noticed).
+   - scripts/contract_check.mjs: see api_to_ui_workflow.txt §10.
+
+8. COVERAGE + CI
+   - Coverage gate (Phase 7): src/shared >= 70%, src/modules/*/schemas+helpers >= 80%.
+   - CI order: format:check, lint, typecheck, test, build, contract_check,
+     (nightly) e2e + audit. Fail on warnings from React ("act", "key").
+
+9. WHAT "DONE" EVIDENCE LOOKS LIKE (example)
+   D1 lint 0 / typecheck 0 / test 61 passed / build 0
+   D2 verify:chat 38/38 (added: project-scoped list, auto title, completed answers)
+   D3 table of 10 acceptance criteria x 4 viewports = 40 PASS (screens in .agent/evidence/chat-project/)
+   D4 console clean; D5 keyboard-only flow OK; axe 0 serious
+   D6 matrix rows 30,31,33,37,42 -> BUILT; known issues #2,#3,#5 closed

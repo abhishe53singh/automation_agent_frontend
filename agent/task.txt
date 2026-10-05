@@ -1,0 +1,27 @@
+TASK — Chat that works: project-scoped, auto-named, usable on a phone  (Phase 4b, items 73-86)
+=============================================================================================
+DATE / SESSION   2026-10-04 (audit handoff — NOT STARTED)
+USER REQUEST     "chat feature isn't working, can't add chat to project; on creating a new
+                  chat it asks for a name instead of generating one from the first query and
+                  returning the generated name to the frontend if it's the first chat of the session"
+ASSUMPTIONS      Title generation lives in the backend (backend_requests/chat-title.txt); the
+                 frontend ships an interim client-derived title so the UX works today.
+                 Answers need the backend dev-echo adapter to be provable.
+
+GOAL             From inside a project (or globally) a user clicks New chat, types a message, and
+                 gets a named chat with answers, on desktop and phone.
+
+ACCEPTANCE       the 10 criteria in screen_specs.txt S6 (copy them here and fill the evidence table)
+
+CAPABILITY GATE
+  - POST /chat/sessions {project_id, model_ids}: YES (documented; probe it first)
+  - Title generation: NO -> backend_requests/chat-title.txt (interim client derive)
+  - Answers completing: NO -> backend_requests/dev-echo-adapter.txt (BLOCKED for D2/D3 on answers;
+    still build resume/poll logic and test it with fixtures + mocked responses)
+
+SUGGESTED ORDER   70-71 (templates/primitives) -> 74 (routes+keys) -> 73 (lazy create) -> 75 -> 76 ->
+                  77-79 -> 80-84 -> 85 -> 86 -> 87 when backend ships
+
+OUT OF SCOPE      knowledge/RAG, token streaming, agents/workflows
+
+--- fill after finishing (use task_template.txt) ---

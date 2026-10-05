@@ -1,0 +1,116 @@
+# Frontend Theme Plan — single-file color system
+
+## Rule
+
+One file owns every color in the project:
+
+    src/styles/theme.css
+
+Changing the palette in that file re-themes the entire application
+(components, states, charts, dark mode). No other file may define colors.
+
+## Why CSS variables + Tailwind v4 @theme
+
+Tailwind v4 is CSS-first: utilities map to CSS custom properties.
+Components use semantic class names only (bg-background, text-foreground,
+bg-primary, border-border, text-destructive, bg-muted, text-success …).
+Swapping the variable values in the one theme file re-themes everything
+with zero component edits.
+
+## File contract (sections, in order)
+
+`src/styles/theme.css` — pure tokens, nothing else. The Tailwind import
+lives in `src/styles/globals.css`:
+
+    @import "tailwindcss";
+    @import "./theme.css";
+
+theme.css sections:
+
+  1. HEADER COMMENT — "THIS IS THE ONLY FILE WITH COLORS. Edit section 2
+     to re-theme the whole project."
+
+  2. ★ EDIT HERE — BASE PALETTE (the only section you touch to re-theme)
+       :root {
+         /* brand scale (primary actions, links, focus) */
+         --brand-50: ...; ... ; --brand-950: ...;
+         /* neutrals (surfaces, text, borders) */
+         --neutral-0: ...; ... ; --neutral-950: ...;
+         /* semantic hues */
+         --success-*, --warning-*, --danger-*, --info-*;
+       }
+
+  3. SEMANTIC TOKENS — LIGHT (default scope)
+       :root {
+         --background, --foreground, --card, --card-foreground,
+         --popover, --popover-foreground, --primary, --primary-foreground,
+         --secondary, --secondary-foreground, --muted, --muted-foreground,
+         --accent, --accent-foreground, --destructive,
+         --destructive-foreground, --border, --input, --ring,
+         --success, --warning, --info, --chart-1 … --chart-5;
+         (values reference the palette, e.g. --primary: var(--brand-600);)
+         optional: --font-sans, --font-mono, --radius
+       }
+
+  4. SEMANTIC TOKENS — DARK (same variable names, dark values)
+       .dark { ... }
+       (next-themes toggles the .dark class on <html>; it holds no colors)
+
+  5. TAILWIND MAPPING
+       @theme inline {
+         --color-background: var(--background);
+         --color-foreground: var(--foreground);
+         --color-primary: var(--primary);
+         … one line per semantic token …
+         --color-border: var(--border);
+         --color-ring: var(--ring);
+         --color-success: var(--success); --color-warning: var(--warning);
+         --color-info: var(--info);
+         --color-destructive: var(--destructive);
+         --color-chart-1 … --color-chart-5;
+       }
+
+## How to change the theme of the whole project
+
+1. Open src/styles/theme.css.
+2. Rewrite section 2 (BASE PALETTE) — brand + neutrals + semantic hues.
+   Every bg-primary / text-foreground / border-border in the app follows.
+3. Optionally adjust section 3/4 mappings (e.g. swap which brand step is
+   --primary) and section 4 for a different dark look.
+4. Nothing else changes. No component, config or utility file is touched.
+
+## Rules (enforced in review; lint rule added in phase 7)
+
+1. Components/styles use semantic tokens only (Tailwind classes backed by
+   the variables above). Raw hex/rgb/hsl/oklch outside theme.css is FORBIDDEN.
+2. A new color need (e.g. a purple chart series) = add a token in section
+   2 + 3 + 5, never an inline value in a component.
+3. next-themes is configuration only (light/dark/system preference storage
+   + class toggle) — it contains no colors.
+4. Fonts and base radius are declared here too, so one file drives the
+   entire look.
+5. Keep WCAG AA contrast when editing (body text vs --background >= 4.5:1);
+   check both light and dark sections.
+6. Brand/logo colors used in SVG assets under public/ are exempt only if
+   they cannot be expressed as tokens (document it in the file header).
+
+## Validation
+
+- npm run dev → toggle light/dark at /settings/appearance → walk
+  dashboard, projects, chat, knowledge: no stray raw colors.
+- search src/ for hex literals: only hits allowed are theme.css,
+  documented SVG exceptions, and markdown examples.
+- npm run build must stay green after any theme edit (tokens are build-time
+  CSS, not runtime JS).
+
+## Appendix — non-color tokens (added 2026-10-04)
+
+theme.css also owns non-color design tokens so the whole look stays in one file:
+  --radius (controls md, cards lg), font families, shadow-popover / shadow-dialog,
+  z-index scale (dropdown 30, sticky 20, overlay 40, toast 50), motion durations
+  (--duration-fast 120ms, --duration-base 180ms) and easing (--ease-out).
+Components consume them through Tailwind theme mappings (e.g. shadow-popover,
+z-overlay). Never hard-code shadows, z-index or durations in components.
+Add chart/status tokens in sections 2, 3 and 5 when a new semantic color is
+needed (see Rules 2). Verify AA contrast in light and dark after every edit.
+

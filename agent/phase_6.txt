@@ -1,0 +1,21 @@
+PHASE 6 — Future domains (GATED: build only when the backend phase lands)
+49. Gate check: re-read .backend_agent/current_status.txt — backend phases
+    4-7 (integrations, agents, workflows, production) are TODO today.
+    Create placeholder routes only; implement per sub-item as its backend
+    counterpart becomes DONE
+50. Integrations UI: Google OAuth connect/disconnect, provider connection
+    status (backend phase 4: OAuth + provider_connections)
+51. MCP UI: server registry, discovered tools/resources/prompts,
+    permission states (allowed / requires_confirmation / blocked) and
+    approval confirmation workflow (backend phase 4)
+52. Agents: definition editor (type, system prompt, configuration, tool
+    access), runs list, run detail with steps timeline (backend phase 5)
+53. Workflows: definition + type-driven step editor (agent/tool/condition/
+    loop/wait/approval…), triggers/schedules, runs with live status
+    (backend phase 6)
+54. Shared execution timeline component (execution events via SSE/poll)
+    reused by agents, workflows and approval prompts
+55. Each feature keeps its own module folder + BFF routes; no shortcuts
+    that break the module boundaries
+56. Update current_status.txt + project_future_tasks.txt per delivered
+    sub-item; never mark done without a live run against the backend

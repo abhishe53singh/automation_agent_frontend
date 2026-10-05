@@ -1,0 +1,18 @@
+# Build output
+.next/
+out/
+build/
+coverage/
+
+# Lockfiles and generated types
+package-lock.json
+next-env.d.ts
+
+# Agent docs (not source code)
+.agent/
+.backend_agent/
+
+# Misc
+node_modules/
+.env
+.env*.local

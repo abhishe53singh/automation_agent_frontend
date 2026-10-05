@@ -1,0 +1,28 @@
+NOTE: item 60 (Playwright) is started early in phase 4b item 86; item 59 coverage
+gates build on tests added per task (testing_and_verification.txt).
+
+PHASE 7 — Production (perf, tests, CI/CD, hardening)
+57. Bundle budgets: route first-load JS target < 180 kB gzip; size-limit
+    (or next bundle analyzer script) wired into CI; kill accidental
+    barrel-file bloat and heavy client deps
+58. Performance pass: server prefetch audit (no client waterfalls on first
+    paint), next/image + next/font verification, streaming/Suspense in
+    route segments, memoize hot lists, TanStack staleTime per resource
+59. Vitest unit/component tests: shared/lib + module hooks/components
+    (coverage gate on src/shared, e.g. >= 70%)
+60. Playwright e2e against a seeded backend: auth flow, project + members,
+    chat round-trip with SSE, knowledge upload->search
+61. CI/CD: pipeline running lint, typecheck, test, build, size budget;
+    preview deploys; protected main
+62. Observability: web-vitals reporting, error tracking (Sentry or
+    logger), /api/health surfaced for ops, source maps strategy decided
+63. Security: CSP final pass (headers from next.config.ts), cookie flags
+    audit (httpOnly/secure/sameSite), npm audit in CI, no secrets in
+    NEXT_PUBLIC_*, dependency pinning
+64. Accessibility: axe scan clean, full keyboard navigation, visible
+    focus (ring token), theme token contrast AA in light AND dark
+65. UX polish: consistent toasts, 429/backoff handling, offline banner,
+    empty states, skeleton consistency, error.tsx recovery paths
+66. Docs + closeout: README (setup, scripts, env, architecture map),
+    .env.example refresh, final audit of current_status.txt and
+    project_future_tasks.txt (all phases re-audited with evidence)

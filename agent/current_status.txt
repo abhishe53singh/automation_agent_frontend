@@ -1,0 +1,96 @@
+# Frontend status — Automation Agent (compact; history in archive/)
+Updated: 2026-10-04 (audit session). Detailed phase 1-4 logs: archive/current_status_2026-10-01.txt
+
+## Progress table (honest; see agent_process.txt §6 for status words)
+
+| Phase | Items | Status | Evidence / blocker |
+| --- | --- | --- | --- |
+| 1 Foundation | 1-9 | DONE | scaffold, theme, shell, tooling (archive) |
+| 2 Platform (BFF + auth) | 10-19 | DONE | verify:auth 27/27, verify:bff 24/24 (as of 2026-10-01) |
+| 3 Projects / LLM / dashboard | 20-28 | DONE | verify:projects 46/46 (as of 2026-10-01) |
+| 3b Project workspace + UI kit | 67-72 | TODO | project pages are one long page; no tabs; missing primitives |
+| 4 Chat (original) | 29-38 | PARTIAL | BFF+UI exist; flow unusable end to end (Known issues K1-K10) |
+| 4b Chat remediation | 73-88 | TODO | blocked in part on backend_requests/dev-echo-adapter + chat-title |
+| 5 Knowledge | 39-48 | TODO | 37 backend operations, no BFF/UI yet |
+| 6 Future domains | 49-56 | BLOCKED | backend phases 4-7 TODO |
+| 7 Production | 57-66 | TODO | Playwright pulled forward into 4b (item 86) |
+
+## KNOWN ISSUES (read before feature work; close with evidence)
+
+P0 — core flow unusable
+- K1  Chat answers never arrive: backend has no provider adapter; responses stay
+      `pending`. verify:chat asserts `pending`, so it passed anyway.
+      -> backend_requests/dev-echo-adapter.txt (BLOCKED). Frontend shows honest message (item 83).
+- K2  Chats cannot be created inside a project: UI never sends project_id, never
+      lists by projectId, no /projects/[id]/chat route. (items 73, 74)
+- K3  New chats have no models attached; first send fails until the user finds
+      the Models dialog; empty registry is a dead end. (item 75)
+
+P1 — degraded / confusing
+- K4  New chat asks for a title (dialog). Titles must be generated. (items 73, 76; backend_requests/chat-title.txt)
+- K5  Chat list hidden below md; layout uses 100vh-8rem. (item 80)
+- K6  Session row actions are hover-only (opacity-0): unreachable on touch. (item 80)
+- K7  Streaming does not resume after reload/navigation; no polling fallback. (item 77)
+- K8  Stream/"All answers received" state leaks into the next round (OpenChat is
+      keyed by session only; useTurnStream state is never reset per turn). (item 78)
+- K9  Composer: double submit possible; Enter during IME composition sends. (item 82)
+- K10 Any session error renders "Not found" (500/network too). (item 79)
+
+P2 — polish / maintainability
+- K11 SSE events patch only the top-level turns cache, not branch children. (item 85)
+- K12 ModelSetEditor draft keyed on session.updated_at; model-set change may not bump it. (item 85)
+- K13 isMockMode() re-parses env on every call; NEXT_PUBLIC_MOCK=true throws. (item 85)
+- K14 chat imports formatDate from projects/components (rule 2 violation). (item 85)
+- K15 Sidebar copy says chat "lands in later phases" + P4/P5 badges. (items 68, 85)
+- K16 tests/ and scripts/ missing from the delivered repo; vitest ESM warning;
+      stray files (_tree.txt, test_*.txt UTF-16, tsc_out.txt, run_tests.ps1,
+      .env.local committed). (item 86)
+- K17 Query-key design: list key is [chat,sessions,"active|all"] — same prefix as
+      [chat,sessions,<id>], so invalidating the list refetches EVERY session,
+      turns and messages; the list key also lacks projectId. Restructure to
+      [chat,"list",filters] and [chat,"session",id,...]. (items 74, 85)
+- K18 BACKEND: DELETE provider/model with history returns 500 (IntegrityError)
+      before the BFF remaps to 409; ADMIN_EMAILS unset -> admin toggle 403;
+      GET .../turns returns all turns; Google login untestable. (backend_requests/)
+
+## Doc drift (resolved this session unless marked OPEN)
+- project_structure_graph "greenfield" baseline, API_CONTEXT §5 "None of this exists" -> fixed
+- phase_1 "Next.js 15", phase_2 "middleware.ts" -> fixed (16 / proxy.ts)
+- old current_status: table said Phase 4 TODO, detail said COMPLETE -> fixed (PARTIAL)
+- old item 31 ticked DONE without project scope/model picker -> reopened (73-75)
+- route map listed /projects/[id]/{members,chat,knowledge}, /settings/appearance
+  that did not exist -> graph now marks BUILT vs PLANNED
+- OPEN: .backend_agent/API.md #38 says "top-level turns"; server returns all
+- OPEN: .agent/API.md has no session_title (pending backend change)
+
+## Locked decisions
+- Next.js 16 App Router (Turbopack) + React 19 + TypeScript 6 strict; Tailwind v4
+  CSS-first; TanStack Query v5; Zustand for tiny UI state; RHF + Zod 4.
+- TypeScript pinned 6.x and ESLint 9.x until eslint-config-next supports TS 7 / ESLint 10.
+- Single-file theming: all colors in src/styles/theme.css (only global-error.tsx exempt).
+- next-themes = light/dark/system only. Dark = `.dark` class.
+- Route groups: (auth) shell-free, (app) shell. `/` redirects to /dashboard.
+- BFF: browser -> /api/* only; httpOnly cookies `at` + `rt`; refresh single-flight;
+  guard is src/proxy.ts (cookie-only, Edge).
+- Backend masks authorization failures as 404 -> render "Not found", never enumerate.
+- Fixture mode NEXT_PUBLIC_MOCK=1 exists for state development only.
+- Radix primitives for overlays/menus/tabs/tooltips (accessibility) — to be added in item 71.
+
+## Dependencies (current; add a line when you add one)
+Runtime: next 16.3.8, react 19.3.0, @tanstack/react-query 5, zod 4, react-hook-form 7
++ @hookform/resolvers, next-themes, sonner, lucide-react, class-variance-authority,
+clsx, tailwind-merge, @radix-ui/react-slot.
+Dev: vitest 4, @testing-library/{react,jest-dom}, jsdom, @vitejs/plugin-react,
+eslint 9 + eslint-config-next 16 + eslint-config-prettier, prettier 3, tailwindcss 4.
+Planned: @radix-ui/react-{dialog,dropdown-menu,tabs,tooltip,switch,checkbox}, msw,
+@playwright/test, @axe-core/playwright.
+
+## Environment notes
+- The terminal harness kills long foreground processes. Run detached and poll a log:
+  Windows: Start-Process cmd -ArgumentList '/c','npm run build > out.log 2>&1' -WindowStyle Hidden
+  Budget 2-5 min for build/lint on this machine; first compile of a route ~20 s.
+- Backend: cd ../backend && venv\Scripts\python.exe -m uvicorn main:app --port 8000
+- verify:bff needs `npm run build && npm run start -- -p 3100`; cookies are Secure in
+  production so plain-HTTP clients drop them (scripts drive an explicit cookie jar).
+- Editor caveat: chunked insert_line on long files can orphan blocks; re-read the seam.
+- Known upstream quirks: see K18.

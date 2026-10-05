@@ -1,0 +1,392 @@
+# Frontend project handoff: Automation_Agent (frontend)
+
+## Progress against .agent/project_future_tasks.txt (updated 2026-10-01)
+
+| Phase | Items | Status | Evidence |
+| --- | --- | --- | --- |
+| Phase 1 Foundation | 1-9 | DONE | all nine items implemented and verified (see Phase 1 detail) |
+| Phase 2 Platform (BFF + auth) | 10-19 | DONE | all ten items implemented and verified live (see Phase 2 detail) |
+| Phase 3 Projects/LLM/dashboard | 20-28 | DONE | all nine items implemented and verified live (see Phase 3 detail) |
+| Phase 4 Chat | 29-38 | TODO | not started |
+| Phase 5 Knowledge | 39-48 | TODO | not started |
+| Phase 6 Future domains (gated) | 49-56 | TODO | backend phases 4-7 also TODO — see below |
+| Phase 7 Production | 57-66 | TODO | not started (Vitest now exists; e2e harness still pending) |
+
+### Phase 1 detail (2026-10-01, session 2 — PHASE 1 COMPLETE)
+
+- [DONE] 1. Next.js 16.3.8 App Router scaffold, `src/`, TypeScript strict,
+  ESLint 9.39.5 flat config (`eslint .`), Prettier 3.9.9, committed
+  `package-lock.json` (clean `npm ci`).
+- [DONE] 2. Tailwind CSS v4.3.3 wired via `postcss.config.mjs`
+  (`@tailwindcss/postcss`). `src/styles/theme.css` now holds all five sections
+  COMPLETE: base palette (brand 50-950, neutral 0-950, success/warning/danger/
+  info scales, chart-1..5), semantic light tokens, semantic `.dark` tokens, and
+  the `@theme inline` Tailwind mapping (including radius + font tokens).
+  `globals.css` imports tailwind + theme, re-points the `dark:` variant at the
+  `.dark` class (`@custom-variant`) and adds base border/body rules.
+  `next-themes` 0.4.6 provides the light/dark/system toggle only.
+- [DONE] 3. `tsconfig.json` strict + `@/*` alias. Scripts: `dev, build, start,
+  lint, lint:fix, format, format:check, typecheck, test, test:watch, analyze`.
+- [DONE] 4. Root layout: `next/font` Geist + Geist_Mono (self-hosted, build-time
+  download, exposed as `--font-geist-sans` / `--font-geist-mono` CSS vars),
+  metadata template, and the provider tree — `ThemeProvider > QueryProvider >
+  {children, Toaster}` in `src/providers/`.
+- [DONE] 5. `shared/ui` primitives, semantic tokens only, no business logic:
+  `Button` (cva variants + `asChild` via @radix-ui/react-slot), `Input`
+  (label/hint/error), `Card` (+Header/Title/Description/Content/Footer),
+  `Badge`, `Spinner`/`SpinnerBlock`, `EmptyState` — all re-exported from
+  `shared/ui/index.ts`. Plus `shared/lib/cn.ts` (clsx + tailwind-merge) and
+  `shared/components/ThemeToggle.tsx`.
+- [DONE] 6. Route groups: `(auth)` placeholder pages (login, register,
+  forgot-password, reset-password) with a centered shell-free layout, and
+  `(app)` with `AppShell` (desktop sticky sidebar + topbar, off-canvas mobile
+  drawer below `lg` with Escape/backdrop close and viewport-change reset).
+  Placeholder pages: dashboard, projects, chat, knowledge, settings.
+- [DONE] 7. Segment boundaries: `(app)/loading.tsx`, `(app)/error.tsx`,
+  `(app)/not-found.tsx`, plus root `error.tsx`, `global-error.tsx` and
+  `not-found.tsx`.
+- [DONE] 8. `src/config/env.ts` — Zod-validated, server/client split
+  (`getServerEnv()` lazy + cached, `getClientEnv()`), aggregated readable
+  errors; `.env.example` documents server vs NEXT_PUBLIC_ keys.
+  `next.config.ts`: reactStrictMode, poweredByHeader:false, typedRoutes,
+  securityHeaders, optimizePackageImports, bundle-analyzer hook.
+- [DONE] 9. Verification (all green):
+  - `npm run format` → exit 0
+  - `npm run typecheck` → exit 0
+  - `npx eslint src tests vitest.config.ts next.config.ts` → exit 0, 0 problems
+    (a full `eslint .` run was killed by the terminal harness, not by ESLint)
+  - `npm run test` → exit 0, 7 tests passed in tests/unit/primitives.test.tsx
+  - `npm run build` → exit 0, compiled in 46s; 12 static routes prerendered
+    (`/`, `/_not-found`, /chat, /dashboard, /forgot-password, /knowledge,
+    /login, /projects, /register, /reset-password, /settings)
+  - `npm run dev` → `/dashboard` 200, `/login` 200, `/does-not-exist` 404.
+    Served HTML contains the sidebar (`aria-label="Main"`), topbar, theme
+    toggle and self-hosted Geist class names; served CSS contains
+    `--color-*` mappings, the palette and the `.dark` scope.
+  - Raw-color sweep over `src/`: hex/`oklch()` literals appear ONLY in
+    `src/styles/theme.css`, except `src/app/global-error.tsx` which is the
+    documented exception (it replaces the whole document and cannot rely on
+    the stylesheet). Recorded in the theme.css header.
+
+### Phase 2 detail (2026-10-01, session 3 — PHASE 2 COMPLETE)
+
+- [DONE] 10. `src/server/session.ts` sets/clears the httpOnly `at` + `rt`
+  cookies (sameSite=lax, secure in production) and `src/server/upstream.ts`
+  is the single place that attaches `Authorization: Bearer <at>` to
+  `API_BASE_URL` requests. The upstream host is never visible to the browser.
+- [DONE] 11. Refresh-on-401 with a single-flight mutex: one in-flight
+  `/auth/refresh` promise is shared by every waiter (rt rotates — the backend
+  revokes the presented token, so concurrent refreshes would kill the loser).
+  The request is retried exactly ONCE; a second 401 clears the cookies and
+  returns a 401 envelope.
+- [DONE] 12. `/api/auth/{signup,login,logout,forgot-password,reset-password,google}`.
+  The upstream `Token` JSON is consumed server-side; the browser only ever
+  receives `{ user }` plus Set-Cookie. Signup creates the account and signs the
+  new user in in one round trip.
+- [DONE] 13. `/api/session` (upstream `/users/me` server-side, always 200 with
+  `user: null` when the session is dead) plus `src/proxy.ts` (Next 16 renamed
+  the `middleware` convention): unauthenticated → `/login?next=…`,
+  authenticated away from `(auth)` routes → `/dashboard`. The guard is
+  cookie-only by design, since it runs on the Edge runtime.
+- [DONE] 14. `src/shared/lib/api/`: `apiFetch`/`apiJson`/`apiVoid` (JSON,
+  timeout, caller-supplied AbortSignal), `ApiError` with the full code map
+  (unauthorized|forbidden|not_found|validation|conflict|rate_limited|
+  upstream|network|timeout) and `parseWith` — a Zod failure becomes code
+  "upstream", never silent `any`.
+- [DONE] 15. QueryProvider defaults: staleTime 30 s, retry budget of 2 and
+  ONLY for transient transport failures (never on a 4xx); `QueryCache` /
+  `MutationCache` own the global toast surface. `src/shared/lib/query-prefetch.tsx`
+  provides `prefetchQuery` / `PrefetchedBoundary` for server → HydrationBoundary.
+- [DONE] 16. Auth module forms (RHF 7 + Zod 4 + `@hookform/resolvers`) for
+  login/register/forgot/reset, wired to the BFF, with server-error toasts and
+  redirect-to-intended after login (`safeNextPath` blocks open redirects).
+- [DONE] 17. Users module: `getSession`/`getMe`/`updateUserStatus`, hooks, and
+  `/settings/profile` (read-only card + admin status toggle). The toggle is
+  honestly gated: `ADMIN_EMAILS` lives in the backend env, so a 403 renders
+  "requires an administrator account" instead of faking admin rights.
+- [DONE] 18. Error surfaces: proxy redirect on an unauthenticated page hit,
+  inline retry UI on network failure, one toast per failed query/mutation, and
+  every form catches its mutation (no unhandled rejections).
+- [DONE] 19. Two smoke suites, both green against the REAL backend:
+  - `npm run verify:auth` → `scripts/verify_auth_flow.mjs`, 27/27
+    (signup → login → session → refresh rotation → logout, plus duplicate,
+    bad-credentials, single-use reset token, idempotent logout).
+  - `npm run verify:bff` → `scripts/verify_bff_gateway.mjs`, 24/24
+    (signup sets both cookies and no token reaches the JSON body; session
+    resolves the cookie upstream; non-admin status → 403 forbidden; logout
+    clears both cookies and `/api/users/me` then 401s; `/dashboard` → 307 to
+    `/login?next=%2Fdashboard`).
+
+  Also: `npm run test` → 28 tests (7 primitives + 21 new API/validation tests).
+
+### Phase 3 detail (2026-10-01, session 4 — PHASE 3 COMPLETE)
+
+- [DONE] 20. BFF routes for `/api/projects/**` (9 upstream ops) and `/api/llm/**`
+  (10), all thin `parse → guard → callUpstream → normalize` handlers.
+  `/api/users/{id}/status` was already in place from phase 2. The 404-masking
+  pass-through in `server/upstream.ts` is preserved: a role failure stays
+  `not_found` / "Not found." and never becomes a 403. New
+  `server/restrict-conflict.ts` maps the RESTRICT-FK `IntegrityError` (a 5xx
+  upstream) to `409 error.conflict` on provider/model delete.
+- [DONE] 21. `src/modules/projects` — `schemas.ts`, `rbac.ts`, `api.ts`,
+  `hooks.ts`, `index.ts`. Keys are `["projects"]`, `["projects", id]`,
+  `["projects", id, "members"]`, so invalidating the detail key also refreshes
+  the members by prefix. The mutation→invalidation map is written out
+  explicitly in `invalidateProjects()` and documented per mutation.
+- [DONE] 22. `/projects` (cards + create dialog) and `/projects/[projectId]`
+  (details form, delete-with-confirmation). The form tracks which fields the
+  user actually touched: untouched fields are omitted, emptied ones are sent as
+  an explicit `null` to clear. The form is keyed on `updated_at` so a newer
+  server version remounts it instead of setState-in-effect.
+- [DONE] 23. Members UI: `MembersPanel` + `MemberRoleSelect`. Invite requires
+  exactly one of `user_id`/`email` (enforced in the BFF route AND in Zod), never
+  offers `owner`, and the owner row renders with disabled controls plus an
+  explanation rather than hiding them.
+- [DONE] 24. `modules/projects/rbac.ts` mirrors the backend matrix
+  (read = any role, edit/manage-members = owner|admin, delete = owner only) and
+  hides or disables accordingly. `shared/ui/AsyncBoundary` renders a masked 404
+  as "Not found" with NO retry affordance (retrying cannot grant access).
+- [DONE] 25. `src/modules/llm` + `/settings/llm`: providers and models CRUD,
+  per-million cost fields coerced from the upstream DECIMAL strings, and 409
+  rendered inline as "in use by chat history".
+- [DONE] 26. Dashboard prefetches recent projects on the server via
+  `PrefetchedBoundary` (no client waterfall on first paint) and offers quick
+  actions: create project and new chat.
+- [DONE] 27. `shared/ui/AsyncBoundary` (+ `CardGridSkeleton`, `PanelSkeleton`)
+  gives every data surface the same loading/error/empty states; `Skeleton`,
+  `SkeletonText`, `Dialog` and `Select` were added alongside it. Skeletons
+  mirror the real card/panel/table box models to avoid CLS.
+- [DONE] 28. `npm run verify:projects` → `scripts/verify_projects.mjs`, **46/46
+  green against the live backend** (owner + member + stranger accounts; create →
+  invite → RBAC mask → partial PATCH → role change → remove → delete, plus the
+  invite xor rules, the non-assignable `owner` role, and LLM registry basics).
+
+  Verification for this phase, all green: `npm run format` → 0,
+  `npm run typecheck` → 0, `npx eslint src tests vitest.config.ts next.config.ts`
+  → 0 problems, `npm run test` → 28/28, `npm run build` → 0 (26 pages, 19 BFF
+  routes), `npm run verify:projects` → 46/46.
+
+### Notes and limitations carried forward
+
+### Phase 4 detail (2026-10-01, session 5 — PHASE 4 COMPLETE)
+
+- [DONE] 29. `/api/chat/**` (13 upstream ops) plus the SSE passthrough. Because
+  `callUpstream` buffers the whole body, streaming needed a separate path:
+  `src/server/upstream-stream.ts` returns the raw `Response`, refreshing on 401
+  BEFORE the stream opens (a 401 can still become a normal error envelope). The
+  route sets `X-Accel-Buffering: no` + `no-transform`, and wires
+  `request.signal` into an `AbortController` so a browser disconnect aborts the
+  upstream fetch rather than leaving it polling for the full 300 s cap.
+- [DONE] 30. `src/modules/chat` — `schemas.ts`, `api.ts`, `hooks.ts`,
+  `use-turn-stream.ts`, `markdown.ts`, `fixtures.ts`, `mock-api.ts`, `index.ts`.
+  Keys nest so a prefix invalidation of the session also refreshes its turns
+  AND its messages; the invalidation map mirrors the projects module.
+- [DONE] 31–35. The chat screen: session sidebar, conversation, per-model
+  response cards, lazy branch tree, composer, model-set editor.
+  Attach/detach (`PUT`, declarative) and enable/disable (`PATCH`, incremental)
+  are separate controls because the upstream semantics genuinely differ.
+- [DONE] 36. `markdown.ts` (parser) + `components/Markdown.tsx` (renderer).
+  SAFETY: no `dangerouslySetInnerHTML` anywhere — nodes are built from parsed
+  tokens, and `safeHref` rejects `javascript:`/`data:` URLs, so untrusted model
+  output cannot execute. The highlighter is a regex token pass, not a
+  per-grammar parser, to avoid a multi-megabyte dependency.
+- [DONE] 37. Fixture mode: `NEXT_PUBLIC_MOCK=1` + `isMockMode()`.
+  `mock-api.ts` deliberately mirrors the real client's FAILURE MODES (unknown
+  session → `error.not_found`, no enabled model → `error.validation`) so a
+  component cannot come to depend on mock-only behaviour. Off unless the env
+  var is set.
+- [DONE] 38. `npm run verify:chat` → `scripts/verify_chat.mjs`, covering
+  session → turn → SSE stream → branch → model set → rename/archive/delete.
+
+### Phase 4 limitations worth knowing
+
+- **The live chat cannot show a completed answer yet, and that is correct.**
+  The backend has no LLM provider adapters, so every `llm_response` stays
+  `pending` forever. `verify_chat` asserts `pending` rather than faking a
+  completion. Use `NEXT_PUBLIC_MOCK=1` to develop the completed/failed/metrics
+  states.
+- **The SSE stream is DB-polling, not token streaming** (1 s poll, 300 s cap,
+  ending when all responses are final). A `response` event fires when a row
+  changes, not per token — so the UI animates per completed model, not
+  per-token text.
+- **BACKEND DISCREPANCY found by `verify_chat`:** `.backend_agent/API.md` entry 38
+  says `GET /chat/sessions/{id}/turns` returns "top-level turns" when no
+  `parent_turn_id` is given, but the backend actually returns EVERY turn. Left
+  unfiltered, a branch child would render twice — once in the main list and
+  once nested under its parent. `useTurns` therefore filters to
+  `parent_turn_id === null` client-side. Worth confirming with the backend team:
+  either the docs or the implementation should change.
+- **Long threads are not virtualized.** Item 36 says "virtualize if needed";
+  `Markdown` and `ResponseCard` are memoized per block/token and long content
+  is fine up to a few hundred turns, but a thread with thousands of turns will
+  eventually need windowing. Left out deliberately: it is real complexity that
+  is not yet justified, and it is the obvious follow-up.
+
+### Notes and limitations carried forward
+
+- The `/api/debug` probe route created while diagnosing a signup 422 was
+  removed; the bug was real: the signup route called `requestToken("/auth/login")`
+  without `{ form: true }`, so it sent JSON to an endpoint that takes
+  form-urlencoded and got a 422 back.
+- `ADMIN_EMAILS` is still absent from the backend `.env`, so the admin status
+  toggle returns 403 for everyone until it is configured. The frontend handles
+  this explicitly rather than hiding the control.
+- Google sign-in is wired end to end but untestable locally: `GOOGLE_CLIENT_ID`
+  is unset upstream, so the BFF answers 503 / error.upstream.
+- Access tokens cannot be revoked before their 30-minute expiry (only refresh
+  tokens are revocable) — a backend limitation, not a frontend one.
+- `npm run verify:bff` needs a running `npm run start -- -p 3100`. It drives
+  the cookie jar explicitly because the cookies are `Secure` in production and
+  would otherwise be dropped by a plain-HTTP client.
+
+### Added dependencies (session 3)
+
+Runtime: `react-hook-form` 7.x + `@hookform/resolvers` (the Zod adapter for the
+phase-2 auth forms). No other new runtime dependency — the BFF uses the global
+`fetch`/`AbortSignal.timeout`, and Zod 4 was already present.
+
+### Added dependencies (session 2)
+
+
+Runtime: `next-themes` 0.4.6, `@tanstack/react-query` 5.104, `sonner` 2.0.8,
+`zod` 4.6.5, `class-variance-authority` 0.7.1, `clsx` 2.1.1,
+`tailwind-merge` 3.7.0, `lucide-react` 1.49.0, `@radix-ui/react-slot` 1.3.3.
+Dev: `vitest` 4.1.11, `@vitejs/plugin-react`, `jsdom`,
+`@testing-library/react`, `@testing-library/jest-dom`, plus `vitest.config.ts`
+(`@` alias, jsdom env, `tests/setup.ts` with a matchMedia polyfill).
+
+TypeScript stays pinned to the 6.x line because the typescript-eslint bundled
+with eslint-config-next has a peer range that does not yet accept TypeScript 7.
+
+## Current file layout
+
+```text
+frontend/
+├── .agent/                 instruction set (this file, phases, plan, task)
+├── .backend_agent/         backend docs mirror (read-only)
+├── public/                 empty
+├── scripts/                verify_auth_flow.mjs (upstream contract)
+│                           verify_bff_gateway.mjs (BFF/cookies/guard)
+│                           verify_projects.mjs (projects + RBAC + LLM)
+├── tests/setup.ts          vitest setup (jest-dom + matchMedia polyfill)
+├── tests/{unit,integration,e2e}/
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx      root layout (fonts, metadata, providers)
+│   │   ├── globals.css     tailwind + theme imports, dark variant, base layer
+│   │   ├── page.tsx        redirects / -> /dashboard
+│   │   ├── error.tsx  global-error.tsx  not-found.tsx
+│   │   ├── (auth)/         layout + login/register/forgot-password/reset-password
+│   │   │                   (thin: each renders a module form component)
+│   │   ├── (app)/          layout (AppShell), loading/error/not-found,
+│   │   │                   _components/{AppShell,Sidebar,Topbar},  <- Topbar
+│   │   │                   has the user menu + sign out,
+│   │   │                   _lib/navigation.ts,
+│   │   │                   dashboard|projects|chat|knowledge|settings,
+│   │   │                   settings/profile, settings/llm,
+│   │   │                   projects/[projectId]/{page,ProjectDetail}.tsx
+│   │   └── api/            BFF GATEWAY (thin handlers)
+│   │       ├── auth/{signup,login,logout,forgot-password,
+│   │       │        reset-password,google}/route.ts
+│   │       ├── session/route.ts        cookie -> upstream /users/me
+│   │       ├── users/me/route.ts       + users/[userId]/status/route.ts
+│   │       ├── projects/route.ts       + [projectId]/route.ts
+│   │       │                          + [projectId]/members/route.ts
+│   │       │                          + [projectId]/members/[memberId]/route.ts
+│   │       ├── llm/providers/route.ts + [providerId]/route.ts
+│   │       │       llm/models/route.ts + [modelId]/route.ts
+│   │       └── health/route.ts
+│   ├── proxy.ts            route guard (Next 16's `middleware` rename)
+│   ├── styles/theme.css    THE ONLY color file (5 sections, complete)
+│   ├── shared/
+│   │   ├── components/ThemeToggle.tsx
+│   │   ├── lib/cn.ts
+│   │   ├── lib/api/        client.ts (fetch/timeout/abort), error.ts
+│   │   │                   (ApiError + code map), parse.ts (Zod),
+│   │   │                   index.ts (barrel)
+│   │   ├── lib/auth-redirect.ts        401 -> /login?next=…, safeNextPath
+│   │   ├── lib/query-prefetch.tsx     prefetchQuery + PrefetchedBoundary
+│   │   ├── ui/             Button Input Select Card Badge Spinner EmptyState
+│   │   │                   Skeleton Dialog AsyncBoundary + index
+│   ├── providers/          QueryProvider ThemeProvider ToasterProvider + index
+│   ├── config/env.ts       Zod-validated server/client env
+│   ├── server/             session.ts (at/rt cookies) upstream.ts
+│   │                       (Bearer + single-flight refresh) auth.ts
+│   │                       (Token consumed server-side) errors.ts (envelope)
+│   │                       restrict-conflict.ts (RESTRICT FK -> 409)
+│   └── modules/
+│       ├── auth/           api.ts schemas.ts validation.ts hooks.ts index.ts
+│       │                   components/{Login,Register,ForgotPassword,
+│       │                   ResetPassword}Form.tsx
+│       ├── users/          api.ts hooks.ts index.ts
+│       │                   components/{ProfileCard,AdminStatusControl}.tsx
+│       ├── projects/       api.ts schemas.ts rbac.ts hooks.ts index.ts
+│       │                   components/{ProjectCard,ProjectsList,
+│       │                   CreateProjectDialog,ProjectDetailsForm,
+│       │                   MembersPanel,MemberRoleSelect}.tsx
+│       └── llm/            api.ts schemas.ts hooks.ts index.ts
+│                           components/{LlmSettings,ProviderList,ProviderDialog,
+│                           ModelList,ModelDialog}.tsx
+├── next.config.ts  postcss.config.mjs  eslint.config.mjs  vitest.config.ts
+├── tsconfig.json  package.json  package-lock.json
+├── .prettierrc  .prettierignore  .gitignore  .env.example
+└── next-env.d.ts (generated)
+```
+
+## Locked decisions (details in project_structure_graph.txt)
+
+- Next.js 16 App Router (Turbopack default) + React 19 + TypeScript 6 strict.
+- Single-file theming: ALL colors belong in `src/styles/theme.css`; only
+  `global-error.tsx` deviates, and it is documented in the theme file header.
+- Dark mode is class-based (`.dark` on `<html>`), driven by next-themes with
+  `defaultTheme="system"`. Tailwind's `dark:` variant is re-pointed to the
+  class in `globals.css`.
+- Route groups: `(auth)` = shell-free auth pages, `(app)` = sidebar/topbar
+  shell. `/` redirects into `/dashboard`.
+- Microservice boundaries: BFF gateway (src/app/api/**, thin handlers) +
+  feature modules (src/modules/*) + server-only helpers (src/server/**). Only
+  `src/server` knows the upstream host and the tokens.
+- Session = two httpOnly cookies (`at`, `rt`). No token ever reaches browser JS.
+- The route guard is `src/proxy.ts`, not `middleware.ts` — Next 16.3.8 renamed
+  the convention and warns at build time on the old filename.
+- Security headers are applied in next.config.ts and the cookie session is live;
+  the CSP (nonce/headers() strategy) still lands in the phase 7 security pass.
+
+## Environment notes for the next session
+
+- The terminal harness in this environment KILLS long-running foreground
+  processes and reports "Command completion could not be observed". Run long
+  commands detached and poll the log file, e.g.
+  `Start-Process cmd -ArgumentList '/c','npm run build > out.log 2>&1 & echo EXIT=%ERRORLEVEL% >> out.log' -WindowStyle Hidden`
+  then read `out.log`. Budget 2-5 minutes for build/lint on this slow disk.
+- The dev server on this machine also logs "Slow filesystem detected
+  (925ms)"; first-compile of a route takes ~20s. That is environmental, not a
+  code problem.
+- The backend must be running for both smoke suites:
+  `cd ../backend && venv\Scripts\python.exe -m uvicorn main:app --port 8000`
+- `npm run verify:bff` also needs the frontend built and served:
+  `npm run build && npm run start -- -p 3100`.
+- Cookies are `Secure` under `next start` (production), so a plain-HTTP test
+  client drops them. That is why `verify_bff_gateway.mjs` drives an explicit
+  cookie jar rather than relying on a cookie-aware fetch.
+- **Editor caveat learned this session:** `insert_line: N` on a long file
+  inserts *before* line N but the tool's reported line can drift; twice a
+  multi-chunk insert left an orphaned block at EOF. Always `node --check`
+  scripts, or re-read the boundary, after appending in chunks.
+
+## Next work (phase 4 — Chat)
+
+1. BFF `/api/chat/**` (13 upstream ops) including the SSE passthrough on
+   `/api/chat/sessions/{turnId}/stream`: disable response buffering and abort
+   upstream when the client disconnects. The auth/users/projects routes are the
+   template.
+2. `src/modules/chat` with hierarchical keys (`['chat','sessions']`,
+   `['chat','sessions',id]`, `['chat','sessions',id,'turns']`) and the same
+   explicit invalidation discipline as the projects module.
+3. Session list + create dialog with a model multi-select. The LLM registry from
+   phase 3 is the source for the model picker (`/settings/llm` already ships
+   `useModels`).
+4. Phase 3 gotcha to carry over: the editor's `insert_line: N` drifted twice
+   while appending to long files, leaving orphaned blocks. Re-read the seam and
+   `node --check` any script after a chunked append.
+

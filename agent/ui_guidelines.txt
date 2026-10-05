@@ -1,0 +1,266 @@
+UI GUIDELINES — design system + UX law for the Automation Agent frontend
+=========================================================================
+Colors live ONLY in src/styles/theme.css (see theme_plan.txt). Everything else
+about look and behaviour is defined here. When you build or review a screen,
+walk the checklist in section 14.
+
+1. PRINCIPLES
+   P1  Task first. The primary action of a screen is obvious within 2 seconds
+       and reachable with one click/tap.
+   P2  Derive, don't ask. Titles, defaults, scope and ordering come from context.
+       Asking is a last resort and is always skippable.
+   P3  Progressive disclosure. Show the common path; put rare options behind a
+       menu, a "Settings" popover or a details section.
+   P4  Honest states. The UI always says what is happening, what went wrong,
+       and what the user can do next.
+   P5  Consistency beats cleverness. Same pattern -> same component, same words.
+   P6  Speed is a feature. Skeletons shaped like content, optimistic updates for
+       safe edits, prefetch on hover/focus, keep previous data while refetching.
+   P7  One screen, one scroll owner. Never nested scrollbars inside the page body
+       unless it is a deliberate pane (chat messages, sidebar list).
+   P8  Touch parity. Everything a mouse can do, a thumb can do.
+
+2. LAYOUT SYSTEM
+   2.1 Shell: sidebar (>= lg, 16rem) + topbar + <main>. Below lg the sidebar is a
+       drawer opened from the topbar menu button (already built in AppShell).
+   2.2 Page templates (build these as shared components, then use them everywhere):
+       - <PageHeader title description actions breadcrumbs/>   one h1 per page
+       - <PageSection title description actions>               grouped content
+       - <SplitPane list detail/>   master/detail; below md the list and detail
+                                   are separate "pages" (list -> detail with a
+                                   back button) OR the list is a drawer
+       - <Tabs/>                    route-driven for sections (project pages)
+   2.3 Widths: reading/forms max-w-3xl (48rem); dashboards/lists max-w-6xl;
+       workspaces (chat, knowledge split view) are full-bleed within <main>.
+   2.4 Spacing: 4px grid. Page padding 16px (mobile) / 24px (md) / 32px (xl).
+       Vertical rhythm between sections 24px; inside cards 16px; inline gaps 8px.
+   2.5 Breakpoints (Tailwind defaults): sm 640, md 768, lg 1024, xl 1280. Design
+       mobile-first; test 390px and 1280px minimum, 768px for tablet layouts.
+   2.6 Heights: use h-dvh / min-h-0 / flex-1 chains. NEVER `100vh` or
+       `calc(100vh - Nrem)`. A workspace is: `flex h-full min-h-0 flex-col` with the
+       scroll region `flex-1 overflow-y-auto` and a non-scrolling header/composer.
+       <main> in workspace routes must not add its own padding/scroll.
+   2.7 z-index scale (tokens): dropdown 30, sticky 20, drawer/dialog 40, toast 50.
+       No ad-hoc z-[999].
+
+3. COMPONENT INVENTORY (shared/ui) — use these, extend them, don't re-invent
+   Exists: Button, Input, Select, Card(+parts), Badge, Spinner, Skeleton,
+           EmptyState, Dialog, AsyncBoundary.
+   MUST ADD (build once, reuse): Textarea (auto-grow), Tabs, DropdownMenu,
+           Tooltip, Drawer/Sheet, ConfirmDialog, PageHeader, PageSection,
+           Breadcrumbs, SplitPane, Switch, Checkbox, Avatar(initials),
+           CopyButton (move out of chat Markdown), RelativeTime, Kbd,
+           Pagination/LoadMore.
+   Implementation: wrap Radix primitives (@radix-ui/react-dialog, -dropdown-menu,
+   -tabs, -tooltip, -switch, -checkbox) styled with semantic tokens. Radix gives
+   focus trap, Escape, focus return, aria and typeahead for free. If the current
+   hand-rolled Dialog lacks a focus trap/return, replace it.
+   Rules:
+   - Button: one primary per view region; variants primary/secondary/outline/
+     ghost/destructive; `loading` shows spinner AND disables; min touch target 40px.
+   - Icon-only controls need aria-label + Tooltip; size-4 icons (lucide), size-5
+     in nav.
+   - Dialog: title always; description optional; first field autofocus; Escape
+     closes unless a mutation is pending; footer = [secondary] [primary] (primary
+     right); destructive confirms name the object and consequence ("Delete
+     'Q3 plan'? This removes its 12 messages. This can't be undone.").
+     Never open a dialog from a dialog. Don't use dialogs for primary creation
+     flows that can be inline (e.g. new chat).
+   - Menus: row-level secondary actions (rename/archive/delete) go in a
+     DropdownMenu opened by a "more" (⋯) button that is ALWAYS visible on touch
+     (use `[@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-within:opacity-100`).
+   - Toast: use for background results the user is not looking at (saved,
+     copied, deleted, failed-in-background). Errors tied to a form/field/section
+     are INLINE (role="alert"). One toast per user action, never a stack.
+   - Badge: status only (pending/ok/failed/role), not decoration.
+   - EmptyState: icon + title (what is empty) + one sentence (why/what to do) +
+     primary action button. Never a dead end: if setup is required, the action
+     links to the place that fixes it.
+
+4. STATES (every data surface implements all that apply)
+   loading    skeleton matching final layout (no spinner-only pages, no CLS)
+   empty      EmptyState with primary action
+   error      inline panel: what failed (plain words), Retry button (unless
+              masked 404), details collapsible for support (code/status)
+   not found  ONLY for upstream 404 (masked: also means "not yours"); other
+              errors must not say "Not found"
+   forbidden  explain the missing role; hide the action instead when possible
+   pending    server work in progress (chat answer, ingestion): visible progress
+              text + animated indicator + survives reload (poll from server data)
+   partial    some items failed: show successes, list failures with retry
+   offline    banner "You're offline" + queued actions disabled
+   stale      refetching in background: subtle spinner in header, keep old data
+   backend-gap "Not available yet" with a one-line plain explanation; never a
+              fake success
+
+5. FORMS
+   - React Hook Form + Zod resolver; schema derived from the backend schema.
+   - Label above input; helper text below; error replaces helper (role="alert"),
+     tied via aria-describedby; required marked in label text, not color only.
+   - Submit button enabled unless pending; validate on submit, then on change.
+   - On server error keep all input; map FastAPI 422 `loc` to fields; unknown
+     errors show in a form-level alert.
+   - Enter submits single-field forms; Cmd/Ctrl+Enter submits textareas where a
+     send/save action exists. Respect IME: ignore Enter while
+     `event.nativeEvent.isComposing`.
+   - Dirty guard on long forms (confirm before navigating away).
+   - Secrets (API keys) are write-only: show "•••• set" and a Replace button.
+   - Numbers: use inputMode/numeric parsing; display with Intl.NumberFormat.
+
+6. DATA DISPLAY
+   - Lists: dense rows (44px min) on mobile, title + secondary line + trailing
+     meta; truncate with `truncate` and `title` attr; never wrap IDs.
+   - Tables only for truly tabular data on >= md; below md render as stacked rows
+     (cards). Provide column sort only if the backend sorts or the set is small.
+   - Time: relative ("2 h ago") with absolute value in a tooltip/`title`; use
+     <time datetime>. Dates in the user's locale via Intl.DateTimeFormat.
+   - Money/tokens/latency: Intl formatting; tabular-nums; units always shown
+     ($0.0042, 1.2 s, 1,234 tokens).
+   - IDs (uuid) are never shown as primary text. If needed for support, show
+     short form (first 8 chars) in a copyable "details" row.
+   - Null/empty values render as an em dash "—", not "null"/"undefined"/blank.
+   - Long text: clamp to 3 lines with "Show more"; code blocks scroll
+     horizontally with a copy button.
+   - Pagination: backend limit/offset. Lists that can exceed 50 use "Load more"
+     (useInfiniteQuery) or paging controls; show the count when known.
+
+7. MUTATION UX
+   - Safe/reversible (rename, archive, toggle, reorder): OPTIMISTIC update with
+     rollback on error; archive/delete-from-list offers Undo in the toast when
+     the API can restore (archive yes, delete no).
+   - Create: pessimistic but fast; navigate/select the new item as soon as the
+     response arrives (no extra click).
+   - Delete: confirmation naming the object + consequence; after success move
+     selection to a sensible neighbor, never leave a blank pane.
+   - Pending indicators are per-row/per-control, not a global spinner.
+   - Double-submit impossible: disable on pending AND guard in the handler.
+
+8. RESPONSIVE + TOUCH
+   - Test at 390x844 and 1280x800 every time. 768x1024 for split views.
+   - Touch targets >= 40x40px; spacing between adjacent targets >= 8px.
+   - No hover-only information or actions. Hover may enhance, never gate.
+   - Master/detail: below md the list is its own screen; selecting pushes the
+     detail with a back affordance; or the list becomes a left Drawer opened by a
+     visible button in the detail header.
+   - Fixed bottom composers respect safe-area (pb-[env(safe-area-inset-bottom)])
+     and the on-screen keyboard (dvh + sticky within the flex column, not fixed).
+   - Wide content (tables, code) scrolls inside its own container.
+
+9. ACCESSIBILITY (WCAG 2.2 AA)
+   - Landmarks: header, nav (labelled), main, aside; one h1 per route; heading
+     levels don't skip.
+   - Focus: visible ring token on every interactive element; logical order;
+     focus moves to the new content/dialog and returns on close; route changes
+     move focus to the h1 (tabIndex -1).
+   - Live regions: async status (stream state, saved, errors) in aria-live
+     "polite"; errors role="alert".
+   - Names: every control has an accessible name; icon buttons aria-label;
+     form fields have <label>.
+   - Keyboard: everything reachable; Escape closes overlays; arrow keys in menus
+     and tabs (Radix); shortcuts are additive and listed in a help dialog (?).
+   - Contrast: tokens must hold AA in light and dark; never convey state by
+     color alone (icon + text).
+   - Motion: transitions 120-200ms ease-out; wrap non-essential animation in
+     motion-safe: / respect prefers-reduced-motion.
+
+10. TYPOGRAPHY + VISUAL STYLE
+    - Font: Geist (already). Scale: text-xs 12 (meta), sm 14 (body in dense UI),
+      base 16 (reading), lg 18 (section titles), xl-2xl (page titles), 3xl only
+      for marketing/empty hero. Line-height defaults from Tailwind.
+    - Weight: 400 body, 500 labels/nav, 600 headings. No more than 3 sizes per card.
+    - Surfaces: background < card < popover by tokens; borders 1px border token;
+      radius from --radius (md for controls, lg for cards); shadows only on
+      popovers/dialogs/drawers (cards are flat + border).
+    - One accent (brand). Status colors only for status. No gradients/glass except
+      where the theme file defines them.
+    - Density: app is "comfortable-compact": 14px body, 40px controls, 12/16px paddings.
+    - Icons: lucide only, consistent stroke, size-4 in controls.
+
+11. COPYWRITING
+    - Sentence case everywhere. Buttons start with a verb ("Create project",
+      "Send", "Rename"). No "Submit", "OK" (use "Done"/"Save").
+    - Titles name the thing ("Chats", "Members"), empty states say what to do.
+    - Errors: what happened + why (if known) + what to do. "Couldn't send your
+      message. The server didn't respond — try again." Never show raw codes as the
+      message; keep them in a details disclosure.
+    - Banned in UI text: BFF, upstream, adapter, fan-out, phase, P4, uuid, null,
+      "an error occurred".
+    - Placeholders are examples, not labels. Never rely on placeholder as label.
+
+12. NAVIGATION + INFORMATION ARCHITECTURE
+    - Sidebar: Dashboard, Projects, Chats (all chats), Knowledge, Settings. No
+      phase badges, no development notes in production nav.
+    - Context: inside a project the topbar shows breadcrumbs (Projects > Name)
+      and tabs (Overview, Chats, Knowledge, Members, Settings). Deep links are
+      always route-based (refresh/back/share must restore the same view).
+    - State in the URL: selected chat (`/projects/:id/chat/:sessionId` or
+      `?session=`), filters, tabs, search query. Not in component state.
+    - Remember last-used: last project, last model set (localStorage non-sensitive
+      keys, namespaced `aa:`), sidebar collapsed state (zustand persisted).
+    - Global search / command palette (Ctrl/Cmd+K): jump to project, chat,
+      setting; "New chat" action. (Phase 7 polish but design routes for it.)
+
+13. CHAT UX LAW (most-used surface; get it right)
+    13.1 Starting a chat: "New chat" opens an EMPTY conversation instantly (no
+         dialog, nothing created on the server). The first send creates the
+         session (with project_id if in a project, and the user's last-used
+         models), creates the turn, and starts listening. Title is generated
+         (see screen_specs.txt §chat, backend_requests/chat-title.txt).
+    13.2 Layout: left list (sessions, grouped Today/Yesterday/Previous 7 days/
+         Older; search box; project filter chips on the global page), center
+         conversation, header with title (click to rename inline), model chips
+         ("GPT-x, Claude-y" -> opens model popover), overflow menu (archive,
+         delete, export). Mobile: list is a Drawer from a header button.
+    13.3 Messages: user bubble right; per-model answers as cards. 1 model =
+         full width; 2 = side by side >= lg; 3+ = grid or tabs below lg. Each card:
+         model name + status icon, markdown body, copy, regenerate (creates a new
+         turn with the same content and parent), metrics row (tokens, cost,
+         latency) collapsed behind an info toggle on mobile.
+    13.4 Scrolling: stick to bottom while the user is at bottom; if they scrolled
+         up show a "Jump to latest" pill; never yank scroll position.
+    13.5 Composer: auto-growing textarea (1-8 rows), Enter sends, Shift+Enter
+         newline, ignores Enter during IME composition, Send disabled when empty
+         or a send is in flight, preserved draft per session (localStorage
+         `aa:draft:<sessionId>`), model override as a compact select/chips, Stop
+         button while waiting, character limit shown near 20000. Focus returns to
+         the textarea after send.
+    13.6 Pending/streaming: skeleton shimmer in each card, text "Waiting for
+         <model>…"; if the server can't answer at all (no adapter) show the honest
+         backend-gap message instead of an eternal spinner after 10 s.
+         Status header reflects the CURRENT round only and resets on new send.
+         Resume after reload: poll while any response is pending.
+    13.7 Branching: "Branch from here" lives in the message overflow menu; an armed
+         branch shows a dismissible chip above the composer; branches render as a
+         collapsible indented thread with a clear "branch" label and a count.
+    13.8 Keyboard: Ctrl/Cmd+K search chats, Ctrl/Cmd+Shift+O new chat, Esc stop
+         focus/close overlays, Up in empty composer edits last message (optional).
+    13.9 Empty states: no chats -> big "Start a chat" with 3 suggested prompts;
+         no models -> "Add a model to start chatting" linking to /settings/llm;
+         chat has no messages -> composer focused with placeholder "Message <models>…".
+
+14. REVIEW CHECKLIST (run per screen before D3)
+    [ ] Primary action obvious; no required typing the system could derive
+    [ ] Loading/empty/error/pending/forbidden/not-found each seen and sensible
+    [ ] 390px: no horizontal scroll, nav reachable, targets >= 40px, composer visible with keyboard open
+    [ ] 1280px: uses the width sensibly; line length <= 75ch for prose
+    [ ] Light + dark: contrast OK, no raw colors, no invisible borders
+    [ ] Keyboard only: reach + operate everything; focus visible; Esc works
+    [ ] Touch: no hover-only controls
+    [ ] URL reflects state; refresh/back works
+    [ ] Copy follows section 11; no jargon
+    [ ] No layout shift when data arrives; no flash of "Not found"
+    [ ] Mutations: pending, error-preserves-input, success feedback, no double submit
+    [ ] Console clean
+
+15. ANTI-PATTERNS (reject in review)
+    - Asking the user to name something the system can name
+    - Dead-end empty states; disabled buttons without explaining why
+    - Navigation that exists only at >= md
+    - `vh` heights; fixed-px layouts; nested scroll traps
+    - Hover-only action buttons
+    - "Not found" shown for network or 500 errors
+    - Spinner-only pages; layout jumping when data loads
+    - Toast as the only place an error appears
+    - Showing uuids/raw enum values/ISO timestamps to users
+    - State only in component memory when it belongs in the URL or the server
+    - A feature "done" that only works in fixture mode

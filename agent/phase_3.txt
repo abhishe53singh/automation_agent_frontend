@@ -1,0 +1,22 @@
+NOTE: project pages were restructured in phase 3b (items 67-72).
+
+PHASE 3 — Projects, members, LLM registry, dashboard
+20. BFF routes: /api/projects/** (9 upstream ops), /api/llm/** (10),
+    /api/users/{id}/status; error/404-masking pass-through preserved
+21. projects module: list/create/update/delete with hierarchical query
+    keys + invalidation map ([projects], [projects,id], [projects,id,members])
+22. Projects pages: list (cards, create dialog), detail with name/
+    description/instructions editing (partial PATCH, explicit null clears)
+23. Members UI: list with nested user, invite by exactly one of user_id/
+    email, role change, remove; owner rows protected
+24. RBAC UX helpers mirroring backend permissions (canRead/canEdit/
+    canManageMembers/canDelete from the caller's `role`) — hide/disable
+    actions, and render 404-masked failures as "Not found"
+25. llm module + /settings/llm: providers/models CRUD, cost fields,
+    409 conflict UX on delete (RESTRICT FK)
+26. Dashboard: server-prefetched recent projects + quick actions
+    (create project, new chat) — no client waterfall on first paint
+27. Empty/loading/error states for every data surface; skeletons match
+    layout to avoid CLS
+28. scripts/verify_projects smoke test (create -> invite -> RBAC ->
+    delete), then update current_status.txt + project_future_tasks.txt

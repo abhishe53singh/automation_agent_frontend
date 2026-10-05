@@ -1,0 +1,289 @@
+# Automation Agent — Frontend Project Structure Graph
+
+## Purpose
+
+Target architecture and working rules for the Next.js frontend of the
+Automation Agent. Same style and purpose as the backend graph
+(`.backend_agent/backend_project_structure_graph.txt`). Always read together
+with `.agent/theme_plan.txt` (single-file theming) and `.agent/API_CONTEXT.txt`
+(how the frontend consumes the backend API).
+
+## Current repository baseline (updated 2026-10-04)
+
+The frontend is built through phase 3 and partially through phase 4 (chat).
+Authoritative status: `.agent/current_status.txt`; per-operation coverage:
+`.agent/api_coverage_matrix.txt`. Instruction set map: `.agent/00_START_HERE.txt`.
+
+    .agent/             instruction set (see 00_START_HERE.txt)
+    .backend_agent/     read-only mirror of the backend agent docs — upstream
+                        source of truth (API.md, API_CONTEXT.txt, ...)
+    src/                app/ modules/ shared/ providers/ config/ server/ styles/
+    tests/ scripts/     MUST exist (unit, integration, e2e, verify_*.mjs);
+                        a repo without them is broken (agent_process.txt §0)
+
+Route status: BUILT = works end to end; PARTIAL = gaps in Known issues;
+PLANNED = not built. The route map below carries these tags.
+
+## Stack (decided — do not swap without updating this file)
+
+- Next.js 16.3.8 (App Router, React 19.3.0, TypeScript 6 strict, Turbopack
+  is the default bundler in Next 16)
+- Tailwind CSS v4.3.3, CSS-first — NO tailwind.config; all tokens come from
+  the single theme file `src/styles/theme.css` (`.agent/theme_plan.txt`)
+- TanStack Query v5 for server/remote state (cache, dedupe, invalidation)
+- Zustand for tiny client-only UI state (sidebar, prefs) — nothing else
+- React Hook Form + Zod for forms; Zod also validates API responses at
+  every module boundary
+- next-themes ONLY for the light/dark/system preference toggle (no colors)
+- ESLint 9 flat config (`eslint-config-next` 16 + `eslint-config-prettier`)
+  + Prettier 3; Vitest + React Testing Library; Playwright e2e in phase 7
+- npm with a committed lockfile
+
+**Version pins and why** (verified 2026-10-01):
+- TypeScript **6.x**, not 7: the typescript-eslint bundled with
+  `eslint-config-next@16` declares a peer range that does not yet accept
+  TypeScript 7.
+- ESLint **9.x**, not 10: `eslint-plugin-react` / `jsx-a11y` / `import`
+  (pulled in by `eslint-config-next@16`) cap their peer at ESLint 9.
+  Revisit when `eslint-config-next` ships ESLint 10 support.
+
+## Target architecture
+
+```text
+Browser (server components + leaf client components)
+   │  same-origin fetch to /api/*  — JS never sees backend tokens
+   ▼
+Next.js BFF gateway — src/app/api/** route handlers ("frontend services")
+   │  reads httpOnly session cookies, attaches Authorization header,
+   │  refreshes on 401 (single-flight), normalizes errors, proxies SSE
+   ▼
+FastAPI backend — 80 operations (.backend_agent/API.md = source of truth)
+```
+
+"Microservices" for this frontend means two enforced boundaries:
+
+1. **Gateway services (BFF):** the browser never calls FastAPI directly.
+   All upstream traffic flows through Next route handlers — no CORS, no
+   token exposure, one place for refresh / error normalization / future
+   rate limiting.
+2. **Feature modules:** `src/modules/<feature>/` are independent vertical
+   slices (api client + hooks + components + types) exposing only a
+   public `index.ts`. Modules never reach into each other's internals.
+
+## Recommended project structure
+
+```text
+frontend/
+├── .agent/                     instruction docs (this set)
+├── .backend_agent/             backend docs mirror (read-only)
+├── public/
+├── src/
+│   ├── app/                    ROUTES ONLY — thin, server-first
+│   │   ├── layout.tsx          root: fonts, metadata, providers
+│   │   ├── globals.css         tailwind + theme imports, resets (NO colors)
+│   │   ├── (auth)/             public: login register forgot-password
+│   │   │                           reset-password
+│   │   ├── (app)/              authenticated shell                       [BUILT]
+│   │   │   ├── layout.tsx      session guard + sidebar + topbar
+│   │   │   ├── dashboard/page.tsx                                        [BUILT]
+│   │   │   ├── projects/page.tsx                                         [BUILT]
+│   │   │   │   └── [projectId]/
+│   │   │   │       ├── layout.tsx   PageHeader + route Tabs              [PLANNED 3b]
+│   │   │   │       ├── page.tsx     overview (today: whole detail page)  [PARTIAL]
+│   │   │   │       ├── members/page.tsx                                  [PLANNED 3b]
+│   │   │   │       ├── settings/page.tsx   details form + delete        [PLANNED 3b]
+│   │   │   │       ├── chat/page.tsx + [sessionId]/page.tsx  project chats [PLANNED 4b]
+│   │   │   │       └── knowledge/...  files/documents/bases/search       [PLANNED 5]
+│   │   │   ├── chat/page.tsx + [sessionId]/page.tsx  all chats           [PARTIAL 4b]
+│   │   │   ├── knowledge/page.tsx   cross-project knowledge              [PLANNED 5]
+│   │   │   ├── settings/profile  settings/llm                            [BUILT]
+│   │   │   ├── settings/appearance                                       [PLANNED]
+│   │   │   ├── integrations  agents  workflows (placeholders)            [BLOCKED 6]
+│   │   │   └── loading.tsx  error.tsx  not-found.tsx
+│   │   ├── error.tsx  global-error.tsx  not-found.tsx
+│   │   └── api/                BFF GATEWAY (route handlers)
+│   │       ├── auth/…          signup login logout forgot reset google
+│   │       ├── session/route.ts    who am I (cookie -> upstream /users/me)
+│   │       ├── projects/…      + members
+│   │       ├── chat/…          sessions models turns messages responses
+│   │       │   └── …/stream/   SSE passthrough
+│   │       ├── llm/…           providers models
+│   │       ├── files/…  ingestion-jobs/…  documents/…
+│   │       ├── knowledge-bases/…  retrievals/…  citations/…
+│   │       └── health/route.ts frontend + upstream liveness
+│   ├── modules/                FEATURE MICROSERVICES (vertical slices)
+│   │   ├── auth/  users/  projects/  llm/  chat/  knowledge/
+│   │   ├── integrations/  agents/  workflows/   (created in phase 6)
+│   │   └── each module:
+│   │       ├── index.ts        public surface (ONLY cross-module import)
+│   │       ├── api/            typed /api calls + Zod + query keys
+│   │       ├── hooks/          TanStack Query hooks/mutations
+│   │       ├── components/     feature UI
+│   │       ├── store/          optional zustand slice (ephemeral UI only)
+│   │       └── types/          module-local types
+│   ├── shared/                 cross-cutting, business-logic-free
+│   │   ├── ui/                 primitives: Button Input Card Dialog…
+│   │   ├── lib/                fetch wrapper ApiError cn() format sse
+│   │   ├── hooks/              useDebounce useMediaQuery…
+│   │   ├── store/              zustand (UI prefs only)
+│   │   └── types/              shared utilities/aliases
+│   ├── providers/              QueryProvider ThemeProvider Toaster
+│   ├── config/                 env.ts (Zod-validated) site.ts
+│   ├── server/                 BFF helpers: cookies withAuth proxy refresh
+│   └── styles/
+│       ├── theme.css           ★ THE single theme file (theme_plan.txt)
+│       └── globals.css         imports only (no colors)
+├── tests/                      unit/ integration/ e2e/
+├── scripts/                    verify_* smoke tests, bundle analyze
+├── .env.example                template; real .env.local is gitignored
+├── next.config.ts              securityHeaders typedRoutes analyzer
+├── eslint.config.mjs  .prettierrc
+├── tsconfig.json               strict + "@/*" paths alias
+└── package.json                scripts: dev build start lint format
+                                typecheck test analyze
+```
+
+### Example module (the pattern every feature follows)
+
+```text
+src/modules/chat/
+├── index.ts        public surface — the ONLY thing other modules import
+├── api/            typed calls to /api/chat/* + Zod schemas + query keys
+├── hooks/          useChatSessions useChatTurn useChatStream
+├── components/     ChatWindow TurnBranchTree ModelResponseColumn
+├── store/          optional zustand slice (ephemeral UI state only)
+└── types/          module types re-exported through index.ts
+```
+
+## Architectural dependency direction
+
+```text
+src/app (routes)  →  src/modules  →  src/shared
+src/app/api (BFF) →  src/server   →  upstream FastAPI (server-side only)
+```
+
+1. `shared/` never imports from `modules/` or `app/`.
+2. Modules import other modules only through their public `index.ts`,
+   never deep paths; anything shared by 3+ modules gets lifted to `shared/`.
+3. Pages/layouts contain no business logic — they compose module
+   components and prefetch queries server-side.
+4. `"use client"` only at component leaves; pages and layouts stay server.
+5. Upstream URLs and secrets exist only in server env (`src/config/env.ts`);
+   the browser only ever requests `/api/*` on its own origin.
+6. BFF route handlers stay thin: parse → guard → proxy → normalize.
+   Business rules live in modules (client) or the backend (server).
+
+## Single-file theme (summary — full spec in `.agent/theme_plan.txt`)
+
+- ONE file owns every color: `src/styles/theme.css`
+  (base palette ★EDIT HERE → semantic tokens → `.dark` scope → Tailwind
+  `@theme` mapping). `globals.css` only imports.
+- Components use semantic tokens only (`bg-background`, `text-primary`,
+  `border-border`, `bg-destructive`, `text-muted-foreground`…); raw hex
+  outside theme.css is forbidden.
+- Re-theming the whole project = edit the palette block of that single file.
+- next-themes handles light/dark/system preference; it holds no colors.
+
+## Optimized for development
+
+- `next dev --turbo` (Turbopack), strict TS, `@/*` alias, Prettier.
+- Server-first rendering keeps fast refresh instant (client boundaries
+  are leaf components, so edits don't re-render the whole tree).
+- Fixture mode (`NEXT_PUBLIC_MOCK=1`, phase 4+): modules serve canned
+  data so UI work doesn't require the backend running.
+- Scripts from day one: `npm run dev | lint | format | typecheck | test |
+  build | analyze`.
+- Keep barrel `index.ts` files small (explicit exports only) so
+  recompiles stay fast.
+
+## Optimized for production
+
+- Server components by default; client JS only for interactive leaves.
+- Route-level code splitting (Next default) + `loading.tsx` streaming +
+  Suspense per panel; first paint has no client fetch waterfall (server
+  prefetch → TanStack `HydrationBoundary`).
+- `next/image` (avif/webp) and `next/font` (self-hosted, zero CLS).
+- TanStack Query defaults: per-resource `staleTime`, retry budget
+  (network errors only, no retry on 4xx), mutation → key invalidation
+  map instead of manual refetching.
+- `next.config.ts`: `reactStrictMode`, `poweredByHeader: false`,
+  `securityHeaders` (CSP, X-Frame-Options, Referrer-Policy),
+  `optimizePackageImports` for barrel-heavy libs, `typedRoutes`.
+- Session cookies httpOnly + secure + sameSite=lax; JWTs never in
+  localStorage/sessionStorage/JS memory on the client.
+- Bundle budget: first-load JS < 180 kB gzip per route; `npm run analyze`
+  in dev, size gate in CI (phase 7).
+- Env validated with Zod at startup (`src/config/env.ts`) — bad deploys
+  fail at boot, not at runtime.
+- Error strategy: route `error.tsx` recovery + toast for API failures +
+  `global-error.tsx` last resort; SSE consumers always abortable.
+
+## Page/route map (v1 target)
+
+```text
+public:  /login  /register  /forgot-password  /reset-password
+app:     /dashboard
+         /projects  /projects/[projectId]
+                   /projects/[projectId]/members
+                   /projects/[projectId]/chat  …/[sessionId]
+                   /projects/[projectId]/knowledge
+         /settings/profile  /settings/llm  /settings/appearance
+phase 6: /integrations  /agents  /workflows   (placeholders until backend)
+```
+
+## Development order
+
+```text
+PHASE 1 — Foundation      scaffold, single-file theme, shell, tooling
+PHASE 2 — Platform        BFF gateway, auth/session, query provider, guard
+PHASE 3 — Projects        projects/members UI, LLM registry, dashboard
+PHASE 4 — Chat            sessions, model fan-out, branching, SSE stream
+PHASE 5 — Knowledge       upload, ingestion, documents, KBs, search, cites
+PHASE 6 — Future domains  integrations/MCP, agents, workflows (gated on
+                          backend phases 4-6 becoming DONE)
+PHASE 7 — Production      perf budgets, tests, CI/CD, monitoring, a11y
+```
+
+Details in `.agent/phase_1.txt` … `.agent/phase_7.txt`; tracked in
+`.agent/project_future_tasks.txt`.
+
+## Core design rules
+
+1. Keep routes thin; logic lives in modules; data rules live backend-side.
+2. One file owns the color theme (`src/styles/theme.css`) — never scatter colors.
+3. Semantic design tokens only; no raw color literals in components.
+4. The browser never calls the backend directly — always through `/api/*`.
+5. JWTs never reach client-readable storage; cookies are httpOnly.
+6. Server components first; `"use client"` at leaves only.
+7. Every remote read/write goes through TanStack Query with a typed key
+   defined next to its api function.
+8. Zod-validate every upstream response at the module boundary.
+9. Modules communicate only via their public `index.ts`.
+10. One error model: upstream error → BFF `{ error: { code, message,
+    status } }` → `ApiError` → toast / error.tsx.
+11. Backend masks authorization failures as 404 — render "Not found",
+    never leak or enumerate ids.
+12. Build UI only for backend capabilities that are DONE in
+    `.backend_agent/current_status.txt` (phases 4-7 are not).
+13. SSE/long-running consumers must be abortable on unmount.
+14. Every data surface ships loading, empty and error states.
+15. After every session: update `.agent/current_status.txt`,
+    `.agent/project_future_tasks.txt` and `.agent/task.txt`.
+16. Derive, don't ask: never prompt the user for data the system can supply
+    (chat titles, default models, project scope, ordering). See
+    api_to_ui_workflow.txt §4.
+17. Scope travels in the URL: project-scoped screens live under
+    /projects/[projectId]/..., and the id is passed to every create/list call.
+18. Vertical slices: a task is a user-visible outcome (route + BFF + schema +
+    hook + UI + test), never "all BFF routes first".
+19. A feature is done only with live-backend proof and a UI walk at 390px and
+    1280px, light and dark (agent_process.txt D1-D6).
+20. Mobile and touch parity: no hidden navigation, no hover-only controls, no
+    `vh` layouts (ui_guidelines.txt §2, §8).
+21. Query keys include every filter; list keys never share a prefix with
+    entity keys ([module,"list",filters] vs [module,"entity",id,...]).
+22. Pending server work is derived from server data and polled, so it survives
+    reload; SSE is an accelerator, not the source of truth.
+23. UI strings contain no internal jargon (BFF, upstream, adapter, phase).
+24. Docs are code: update api_coverage_matrix.txt, current_status.txt and
+    project_future_tasks.txt in the same change; fix stale docs on sight.
