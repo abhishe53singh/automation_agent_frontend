@@ -16,42 +16,42 @@ PHASE 3 Projects, members, LLM, dashboard (items 20-28) ................... [DON
 
 PHASE 3b Project workspace + UI kit (phase_3b_project_workspace.txt)
   67. Project workspace layout: /projects/[id]/layout + route Tabs
-      (Overview | Chats | Members | Settings; Knowledge when built) ........ [TODO]
-  68. Breadcrumbs, sidebar copy cleanup (no phase badges), last-used project  [TODO]
-  69. Project Overview: instructions, recent chats, members summary, [New chat] [TODO]
-  70. Page templates: PageHeader, PageSection, Tabs, SplitPane, Breadcrumbs ... [TODO]
+      (Overview | Chats | Members | Settings; Knowledge when built) ........ [DONE]
+  68. Breadcrumbs, sidebar copy cleanup (no phase badges), last-used project  [DONE]
+  69. Project Overview: instructions, recent chats, members summary, [New chat] [DONE]
+  70. Page templates: PageHeader, PageSection, Tabs, SplitPane, Breadcrumbs ... [DONE]
   71. Missing primitives (Radix): Textarea, DropdownMenu, Tooltip, Drawer,
-      ConfirmDialog, Switch, Checkbox, RelativeTime, CopyButton, Avatar ...... [TODO]
+      ConfirmDialog, Switch, Checkbox, RelativeTime, CopyButton, Avatar ...... [DONE]
   72. Projects list polish: search, sort, meta, empty state ................ [TODO]
 
 PHASE 4 Chat (original items 29-38)
   29. BFF /api/chat/** + SSE passthrough .................................... [DONE]
-  30. chat module api + keys ................................................ [PARTIAL] key design K17
-  31. Chat list + create ..................................................... [PARTIAL] superseded by 73-75
+  30. chat module api + keys ................................................ [DONE] key design K17
+  31. Chat list + create ..................................................... [DONE] superseded by 73-75
   32. Conversation view ..................................................... [PARTIAL] 81, 83
-  33. Branching UI ......................................................... [PARTIAL] children cache K11
-  34. Submit turn + SSE ................................................... [PARTIAL] 77, 78, 82
-  35. Session sidebar actions ............................................. [PARTIAL] 80, 84
+  33. Branching UI ......................................................... [DONE] children cache K11
+  34. Submit turn + SSE ................................................... [DONE] 77, 78, 82
+  35. Session sidebar actions ............................................. [DONE] 80, 84
   36. Markdown + highlight + copy ........................................ [DONE]
   37. Fixture mode ........................................................ [DONE] (state dev only) K13
   38. verify_chat ........................................................ [PARTIAL] 87
 
 PHASE 4b Chat remediation (phase_4b_chat_remediation.txt)
   73. Lazy-create "New chat": no dialog; first send creates session
-      (+project_id, +models) then turn; draft preserved on failure ........ [TODO]
+      (+project_id, +models) then turn; draft preserved on failure ........ [DONE]
   74. Project-scoped chat routes + shared ChatWorkspace(projectId); list keys
-      per filter; key restructure (K17) ................................... [TODO]
-  75. Default models (last-used -> all active); no-model guided empty state . [TODO]
+      per filter; key restructure (K17) ................................... [DONE]
+  75. Default models (last-used -> all active); no-model guided empty state . [DONE]
   76. Auto title: backend session_title; interim derive + single PATCH ...... [PARTIAL->BLOCKED on backend for the real thing]
-  77. Resume pending work: poll from server state + SSE accelerator ......... [TODO]
-  78. Per-round stream state; header text reflects newest round ............ [TODO]
-  79. Error taxonomy in chat (404 vs 5xx vs network) + retry ................ [TODO]
-  80. Responsive: list Drawer on mobile, dvh layout, touch-safe row menus ..... [TODO]
+  77. Resume pending work: poll from server state + SSE accelerator ......... [DONE]
+  78. Per-round stream state; header text reflects newest round ............ [DONE]
+  79. Error taxonomy in chat (404 vs 5xx vs network) + retry ................ [DONE]
+  80. Responsive: list Drawer on mobile, dvh layout, touch-safe row menus ..... [DONE]
   81. Scroll management (stick/jump), response grid/tabs, skeletons ......... [TODO]
-  82. Composer: autosize, IME/double-submit guards, drafts, Stop, focus ...... [TODO]
-  83. Response card: honest pending/backend-gap, regenerate, metrics toggle .. [TODO]
-  84. Chat list: date groups, search, project chips, inline rename .......... [TODO]
-  85. Cleanup K11-K15 (children cache, model editor key, mock flag, shared formatDate, copy) [TODO]
+  82. Composer: autosize, IME/double-submit guards, drafts, Stop, focus ...... [DONE]
+  83. Response card: honest pending/backend-gap, regenerate, metrics toggle .. [DONE]
+  84. Chat list: date groups, search, project chips, inline rename .......... [DONE]
+  85. Cleanup K11-K15 (children cache, model editor key, mock flag, shared formatDate, copy) [DONE]
   86. Tooling: restore tests/ + scripts/, vitest config, contract_check, check_repo,
       Playwright smoke (chat in project, desktop+mobile), .gitignore ......... [TODO]
   87. Extend verify_chat: project-scoped, title, completed answers .......... [BLOCKED on 88]

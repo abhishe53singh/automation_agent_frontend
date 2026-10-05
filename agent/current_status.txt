@@ -8,9 +8,9 @@ Updated: 2026-10-04 (audit session). Detailed phase 1-4 logs: archive/current_st
 | 1 Foundation | 1-9 | DONE | scaffold, theme, shell, tooling (archive) |
 | 2 Platform (BFF + auth) | 10-19 | DONE | verify:auth 27/27, verify:bff 24/24 (as of 2026-10-01) |
 | 3 Projects / LLM / dashboard | 20-28 | DONE | verify:projects 46/46 (as of 2026-10-01) |
-| 3b Project workspace + UI kit | 67-72 | TODO | project pages are one long page; no tabs; missing primitives |
+| 3b Project workspace + UI kit | 67-72 | DONE | 10 primitives, 4 templates, /projects/[id]/ tabs & subpages |
 | 4 Chat (original) | 29-38 | PARTIAL | BFF+UI exist; flow unusable end to end (Known issues K1-K10) |
-| 4b Chat remediation | 73-88 | TODO | blocked in part on backend_requests/dev-echo-adapter + chat-title |
+| 4b Chat remediation | 73-88 | PARTIAL | Items 73, 74, 75, 76, 77, 78, 79, 80, 82, 83, 84, 85 done; K1 backend blocked |
 | 5 Knowledge | 39-48 | TODO | 37 backend operations, no BFF/UI yet |
 | 6 Future domains | 49-56 | BLOCKED | backend phases 4-7 TODO |
 | 7 Production | 57-66 | TODO | Playwright pulled forward into 4b (item 86) |
@@ -20,35 +20,27 @@ Updated: 2026-10-04 (audit session). Detailed phase 1-4 logs: archive/current_st
 P0 — core flow unusable
 - K1  Chat answers never arrive: backend has no provider adapter; responses stay
       `pending`. verify:chat asserts `pending`, so it passed anyway.
-      -> backend_requests/dev-echo-adapter.txt (BLOCKED). Frontend shows honest message (item 83).
-- K2  Chats cannot be created inside a project: UI never sends project_id, never
-      lists by projectId, no /projects/[id]/chat route. (items 73, 74)
-- K3  New chats have no models attached; first send fails until the user finds
-      the Models dialog; empty registry is a dead end. (item 75)
+      -> backend_requests/dev-echo-adapter.txt (BLOCKED). Frontend shows honest pending card + hint (item 83).
+- [RESOLVED] K2 Chats cannot be created inside a project: Scoped routes + shared ChatWorkspace(projectId) created (items 73, 74).
+- [RESOLVED] K3 New chats have no models attached: Empty workspace selects active registry models automatically and links to /settings/llm if empty (item 75).
 
 P1 — degraded / confusing
-- K4  New chat asks for a title (dialog). Titles must be generated. (items 73, 76; backend_requests/chat-title.txt)
-- K5  Chat list hidden below md; layout uses 100vh-8rem. (item 80)
-- K6  Session row actions are hover-only (opacity-0): unreachable on touch. (item 80)
-- K7  Streaming does not resume after reload/navigation; no polling fallback. (item 77)
-- K8  Stream/"All answers received" state leaks into the next round (OpenChat is
-      keyed by session only; useTurnStream state is never reset per turn). (item 78)
-- K9  Composer: double submit possible; Enter during IME composition sends. (item 82)
-- K10 Any session error renders "Not found" (500/network too). (item 79)
+- [RESOLVED] K4 New chat asks for a title (dialog): Replaced with lazy-create + inline title derivation (items 73, 76).
+- [RESOLVED] K5 Chat list hidden below md; layout uses 100vh-8rem: Fixed with dvh and Drawer below lg (item 80).
+- [RESOLVED] K6 Session row actions are hover-only: Touch-safe DropdownMenu added to SessionRow (item 80).
+- [RESOLVED] K7 Streaming does not resume after reload: Polling fallback added to ChatWorkspace while responses are pending (item 77).
+- [RESOLVED] K8 Stream/"All answers received" state leaks into next round: stream indicator clears per round (item 78).
+- [RESOLVED] K9 Composer: double submit & IME composition issues: Handled with busy guard & isComposing checks in Composer (item 82).
+- [RESOLVED] K10 Any session error renders "Not found": Error taxonomy distinguishes not_found vs 5xx vs network with retry button (item 79).
 
 P2 — polish / maintainability
-- K11 SSE events patch only the top-level turns cache, not branch children. (item 85)
-- K12 ModelSetEditor draft keyed on session.updated_at; model-set change may not bump it. (item 85)
-- K13 isMockMode() re-parses env on every call; NEXT_PUBLIC_MOCK=true throws. (item 85)
-- K14 chat imports formatDate from projects/components (rule 2 violation). (item 85)
-- K15 Sidebar copy says chat "lands in later phases" + P4/P5 badges. (items 68, 85)
-- K16 tests/ and scripts/ missing from the delivered repo; vitest ESM warning;
-      stray files (_tree.txt, test_*.txt UTF-16, tsc_out.txt, run_tests.ps1,
-      .env.local committed). (item 86)
-- K17 Query-key design: list key is [chat,sessions,"active|all"] — same prefix as
-      [chat,sessions,<id>], so invalidating the list refetches EVERY session,
-      turns and messages; the list key also lacks projectId. Restructure to
-      [chat,"list",filters] and [chat,"session",id,...]. (items 74, 85)
+- [RESOLVED] K11 SSE events patch only top-level turns: useTurnStream now patches branch children too (item 85).
+- [RESOLVED] K12 ModelSetEditor draft keyed only on updated_at: Keyed on models fingerprint + updated_at (item 85).
+- [RESOLVED] K13 isMockMode re-parses env: Cached clientEnv and relaxed boolean strings (item 85).
+- [RESOLVED] K14 chat imports formatDate from projects: Migrated to shared/lib/format-date (item 85).
+- [RESOLVED] K15 Sidebar copy stale / phase badges: Cleaned up copy and removed Chat P4 badge (items 68, 85).
+- K16 tests/ and scripts/ missing from the delivered repo; vitest ESM warning. (item 86)
+- [RESOLVED] K17 Query-key design: Restructured to ["chat", "list", filters] and ["chat", "session", id, ...] (items 74, 85).
 - K18 BACKEND: DELETE provider/model with history returns 500 (IntegrityError)
       before the BFF remaps to 409; ADMIN_EMAILS unset -> admin toggle 403;
       GET .../turns returns all turns; Google login untestable. (backend_requests/)

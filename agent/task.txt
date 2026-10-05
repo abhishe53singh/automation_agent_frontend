@@ -24,4 +24,24 @@ SUGGESTED ORDER   70-71 (templates/primitives) -> 74 (routes+keys) -> 73 (lazy c
 
 OUT OF SCOPE      knowledge/RAG, token streaming, agents/workflows
 
---- fill after finishing (use task_template.txt) ---
+--- EVIDENCE & RESULTS ---
+Status: PARTIAL (Phase 3b DONE; Phase 4b core UI/flow complete, pending backend dev-echo adapter for full live answer completion)
+
+D1 Checks:
+- npx tsc --noEmit: EXIT 0 (Zero errors)
+- npm test: EXIT 0 (46/46 unit tests passing across 3 test suites: chat-parsers, api, primitives)
+
+Implemented items:
+- Item 70-71: 10 primitives & 4 templates built, exported from @/shared/ui
+- Item 67-69: /projects/[id]/ tabs (Overview, Members, Settings) & /projects/[id]/chat routes wired
+- Item 73-74: Lazy-create ChatWorkspace with projectId scoping & keys restructured to [chat, list, filters]
+- Item 75: Active registry models selected by default, guided empty state linking to /settings/llm
+- Item 76: deriveTitle client derivation with single PATCH
+- Item 77: Polling fallback on pending turn responses
+- Item 78: Stream reset per round, header status reflecting active round
+- Item 79: Error taxonomy distinguishing not_found vs 5xx vs network with retry button
+- Item 80: Mobile Drawer for sidebar, 100dvh layout, touch-safe DropdownMenu for session row actions
+- Item 82: Composer with auto-growing Textarea, double-submit guard, IME composition guard, focus restore
+- Item 83: Honest pending response card explaining provider adapter dependency
+- Item 84: Sidebar search filter + date groupings (Today, Yesterday, Previous 7 Days, Older)
+- Item 85: Query cache patching for branch children, ModelSetEditor fingerprint key, cached env, shared formatDate, cleaned copy
