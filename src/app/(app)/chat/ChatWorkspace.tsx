@@ -37,6 +37,7 @@ import {
   Textarea,
 } from "@/shared/ui";
 import { PanelSkeleton } from "@/shared/ui/AsyncBoundary";
+import { isApiError } from "@/shared/lib/api";
 
 export interface ChatWorkspaceProps {
   projectId?: string;
@@ -115,19 +116,36 @@ export function ChatWorkspace({ projectId, sessionId }: ChatWorkspaceProps = {})
           </div>
         ) : session.error || !data ? (
           <div className="flex flex-1 flex-col items-center justify-center p-6">
-            <EmptyState
-              title={session.error ? "Couldn't load chat" : "Not found"}
-              description={
-                session.error
-                  ? "An error occurred while loading this conversation."
-                  : "This chat does not exist, or you do not have permission to view it."
-              }
-              action={
-                <Button asChild variant="outline" size="sm">
-                  <Link href={basePath as Route}>Back to chats</Link>
-                </Button>
-              }
-            />
+            {session.error && (!isApiError(session.error) || session.error.code !== "not_found") ? (
+              <EmptyState
+                title="Couldn't load chat"
+                description={
+                  isApiError(session.error)
+                    ? session.error.message
+                    : "An unexpected network or server error occurred while loading this conversation."
+                }
+                action={
+                  <div className="flex items-center gap-2">
+                    <Button variant="primary" size="sm" onClick={() => void session.refetch()}>
+                      Try again
+                    </Button>
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={basePath as Route}>Back to chats</Link>
+                    </Button>
+                  </div>
+                }
+              />
+            ) : (
+              <EmptyState
+                title="Chat not found"
+                description="This chat does not exist, or you do not have permission to view it."
+                action={
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={basePath as Route}>Back to chats</Link>
+                  </Button>
+                }
+              />
+            )}
           </div>
         ) : (
           <OpenChat
@@ -400,6 +418,16 @@ function OpenChat({
   const [streamingTurnId, setStreamingTurnId] = React.useState<string | null>(null);
   const [branchFrom, setBranchFrom] = React.useState<ChatTurn | null>(null);
   const stream = useTurnStream(session.id, streamingTurnId);
+
+  // Clear streaming state when done/timeout/error after 4 seconds
+  React.useEffect(() => {
+    if (stream.state === "done" || stream.state === "timeout" || stream.state === "error") {
+      const timer = setTimeout(() => {
+        setStreamingTurnId(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [stream.state]);
 
   // Poll when any response is pending (item 77)
   const queryClient = useQueryClient();

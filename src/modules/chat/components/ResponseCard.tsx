@@ -69,12 +69,18 @@ export function ResponseCard({ response, modelName, isStreaming }: ResponseCardP
         </p>
       ) : body ? (
         <Markdown content={body} />
+      ) : response.status === "pending" ? (
+        <div className="space-y-2 py-2">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="inline-block size-2 animate-ping rounded-full bg-primary" />
+            <span>Waiting for provider adapter…</span>
+          </div>
+          <p className="text-xs text-muted-foreground/80">
+            Backend is awaiting provider adapter execution (response remains in pending state until an echo/provider adapter is configured).
+          </p>
+        </div>
       ) : (
-        <p className="text-sm italic text-muted-foreground">
-          {response.status === "pending"
-            ? "No answer yet — this model has not responded."
-            : "The model returned an empty answer."}
-        </p>
+        <p className="text-sm italic text-muted-foreground">The model returned an empty answer.</p>
       )}
 
       <ResponseMetrics response={response} />

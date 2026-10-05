@@ -14,7 +14,7 @@ export interface NavItem {
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, phase: null },
   { href: "/projects", label: "Projects", icon: FolderKanban, phase: null },
-  { href: "/chat", label: "Chat", icon: MessagesSquare, phase: "4" },
+  { href: "/chat", label: "Chat", icon: MessagesSquare, phase: null },
   { href: "/knowledge", label: "Knowledge", icon: BookOpen, phase: "5" },
   { href: "/settings", label: "Settings", icon: Settings, phase: null },
 ] as const;

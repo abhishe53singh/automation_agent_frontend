@@ -38,7 +38,11 @@ export function ModelSetEditor({ session }: { session: ChatSession }) {
         description="Every enabled model answers each message, so its own response card appears side by side."
         className="max-w-xl"
       >
-        <ModelSetForm key={session.updated_at} session={session} attachedIds={attachedIds} />
+        <ModelSetForm
+          key={`${session.updated_at}:${session.models.map((m) => `${m.model_id}-${m.is_enabled}`).join(",")}`}
+          session={session}
+          attachedIds={attachedIds}
+        />
       </Dialog>
     </>
   );

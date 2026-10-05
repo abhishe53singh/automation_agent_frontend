@@ -58,7 +58,7 @@ export function Sidebar({ onNavigate, className }: SidebarProps) {
       </ul>
 
       <p className="px-2 text-xs text-muted-foreground">
-        Projects, models and the dashboard are live. Chat and knowledge land in later phases.
+        Automation Agent platform with multi-model chat and project workspace.
       </p>
     </nav>
   );

@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { isMockMode } from "@/config/env";
-import { streamTurnUrl } from "./api";
+import { chatKeys, streamTurnUrl } from "./api";
 import { mockChat } from "./mock-api";
 import { llmResponseSchema, type ChatTurn, type LlmResponse } from "./schemas";
 import { ApiError } from "@/shared/lib/api";
@@ -120,10 +120,14 @@ export function useTurnStream(sessionId: string, turnId: string | null): UseTurn
           });
           setState("streaming");
 
-          // Patch the cached turn in place for an instant card update.
-          const key = ["chat", "sessions", sessionId, "turns"];
+          // Patch the cached turn in place for an instant card update (item 85, K11).
           queryClient.setQueryData<unknown[]>(
-            key,
+            chatKeys.turns(sessionId),
+            (previous) => applyResponseEvent(previous, response) ?? previous,
+          );
+          // Also patch any branch children queries that might contain this turn
+          queryClient.setQueriesData<unknown[]>(
+            { queryKey: ["chat", "session", sessionId, "turns"] },
             (previous) => applyResponseEvent(previous, response) ?? previous,
           );
           return;
@@ -133,13 +137,13 @@ export function useTurnStream(sessionId: string, turnId: string | null): UseTurn
           setState("done");
           // One reconciliation pass once the round is final, so the turn's
           // summary (costs, latency) matches the server exactly.
-          void queryClient.invalidateQueries({ queryKey: ["chat", "sessions", sessionId] });
+          void queryClient.invalidateQueries({ queryKey: chatKeys.session(sessionId) });
           return;
         }
 
         if (event.event === "timeout") {
           setState("timeout");
-          void queryClient.invalidateQueries({ queryKey: ["chat", "sessions", sessionId] });
+          void queryClient.invalidateQueries({ queryKey: chatKeys.session(sessionId) });
           toast.warning("The models took too long. Partial answers are shown.");
         }
       },
@@ -148,7 +152,7 @@ export function useTurnStream(sessionId: string, turnId: string | null): UseTurn
         setError(streamError);
         setState("error");
         // The turn may still be running server-side; re-read the truth.
-        void queryClient.invalidateQueries({ queryKey: ["chat", "sessions", sessionId] });
+        void queryClient.invalidateQueries({ queryKey: chatKeys.session(sessionId) });
       },
 
       shouldStop: (event: { event: string }) => TERMINAL_EVENTS.has(event.event),

@@ -1,12 +1,21 @@
 "use client";
 
 import * as React from "react";
-import { Archive, ArchiveRestore, MessageSquare, Pencil, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, MessageSquare, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
 import { useDeleteSession, useUpdateSession } from "../hooks";
 import { sessionLabel, type ChatSession } from "../schemas";
-import { formatDate } from "@/modules/projects/components/ProjectCard";
-import { Button, Dialog, Input } from "@/shared/ui";
+import { formatDate } from "@/shared/lib/format-date";
+import {
+  Button,
+  Dialog,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  Input,
+} from "@/shared/ui";
 import { cn } from "@/shared/lib/cn";
 
 /**
@@ -56,24 +65,68 @@ export function SessionRow({
         </span>
       </button>
 
-      {/* `focus-within` keeps these reachable by keyboard, not hover-only. */}
-      <div className="absolute right-1 top-1 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-        <IconAction
-          label={session.archived_at ? "Restore chat" : "Archive chat"}
-          onClick={() => archive.mutate({ is_archived: !session.archived_at })}
-        >
-          {session.archived_at ? (
-            <ArchiveRestore className="size-3.5" />
-          ) : (
-            <Archive className="size-3.5" />
-          )}
-        </IconAction>
-        <IconAction label="Rename chat" onClick={() => setRenaming(true)}>
-          <Pencil className="size-3.5" />
-        </IconAction>
-        <IconAction label="Delete chat" destructive onClick={() => setConfirming(true)}>
-          <Trash2 className="size-3.5" />
-        </IconAction>
+      {/* Desktop hover actions + touch-safe ⋯ DropdownMenu (Item 80, K6) */}
+      <div className="absolute right-1 top-1.5 flex items-center gap-0.5">
+        <div className="hidden lg:flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+          <IconAction
+            label={session.archived_at ? "Restore chat" : "Archive chat"}
+            onClick={() => archive.mutate({ is_archived: !session.archived_at })}
+          >
+            {session.archived_at ? (
+              <ArchiveRestore className="size-3.5" />
+            ) : (
+              <Archive className="size-3.5" />
+            )}
+          </IconAction>
+          <IconAction label="Rename chat" onClick={() => setRenaming(true)}>
+            <Pencil className="size-3.5" />
+          </IconAction>
+          <IconAction label="Delete chat" destructive onClick={() => setConfirming(true)}>
+            <Trash2 className="size-3.5" />
+          </IconAction>
+        </div>
+
+        {/* Touch / mobile dropdown */}
+        <div className="lg:hidden">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="flex size-7 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+                aria-label="Chat options"
+              >
+                <MoreHorizontal className="size-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-36">
+              <DropdownMenuItem onClick={() => setRenaming(true)}>
+                <Pencil className="size-3.5 mr-2" />
+                Rename
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => archive.mutate({ is_archived: !session.archived_at })}>
+                {session.archived_at ? (
+                  <>
+                    <ArchiveRestore className="size-3.5 mr-2" />
+                    Restore
+                  </>
+                ) : (
+                  <>
+                    <Archive className="size-3.5 mr-2" />
+                    Archive
+                  </>
+                )}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={() => setConfirming(true)}
+              >
+                <Trash2 className="size-3.5 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       <Dialog

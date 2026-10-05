@@ -23,6 +23,43 @@ export interface SessionSidebarProps {
   onNewChat?: () => void;
 }
 
+interface DateGroup {
+  label: string;
+  items: ChatSession[];
+}
+
+function groupSessionsByDate(sessions: ChatSession[]): DateGroup[] {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startOfYesterday = startOfToday - 86400000;
+  const startOf7Days = startOfToday - 7 * 86400000;
+
+  const today: ChatSession[] = [];
+  const yesterday: ChatSession[] = [];
+  const prev7Days: ChatSession[] = [];
+  const older: ChatSession[] = [];
+
+  for (const session of sessions) {
+    const time = new Date(session.updated_at).getTime();
+    if (time >= startOfToday) {
+      today.push(session);
+    } else if (time >= startOfYesterday) {
+      yesterday.push(session);
+    } else if (time >= startOf7Days) {
+      prev7Days.push(session);
+    } else {
+      older.push(session);
+    }
+  }
+
+  const groups: DateGroup[] = [];
+  if (today.length > 0) groups.push({ label: "Today", items: today });
+  if (yesterday.length > 0) groups.push({ label: "Yesterday", items: yesterday });
+  if (prev7Days.length > 0) groups.push({ label: "Previous 7 Days", items: prev7Days });
+  if (older.length > 0) groups.push({ label: "Older", items: older });
+  return groups;
+}
+
 export function SessionSidebar({
   projectId,
   activeSessionId,
@@ -31,11 +68,23 @@ export function SessionSidebar({
   onNewChat,
 }: SessionSidebarProps) {
   const [showArchived, setShowArchived] = React.useState(false);
+  const [search, setSearch] = React.useState("");
   const sessions = useSessions({ projectId, includeArchived: showArchived });
 
-  const list = sessions.data ?? [];
-  const active = list.filter((session) => !session.archived_at);
-  const archived = list.filter((session) => session.archived_at);
+  const rawList = sessions.data ?? [];
+  const filteredList = React.useMemo(() => {
+    if (!search.trim()) return rawList;
+    const term = search.toLowerCase();
+    return rawList.filter(
+      (s) =>
+        s.title?.toLowerCase().includes(term) ||
+        s.id.toLowerCase().includes(term),
+    );
+  }, [rawList, search]);
+
+  const active = filteredList.filter((session) => !session.archived_at);
+  const archived = filteredList.filter((session) => session.archived_at);
+  const dateGroups = React.useMemo(() => groupSessionsByDate(active), [active]);
 
   return (
     <div className="flex h-full flex-col">
@@ -54,6 +103,16 @@ export function SessionSidebar({
         ) : null}
       </div>
 
+      <div className="border-b border-border px-3 py-2">
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Filter chats…"
+          className="w-full rounded-md border border-input bg-background px-2.5 py-1 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        />
+      </div>
+
       <nav aria-label="Chats" className="flex-1 overflow-y-auto p-2">
         {sessions.isPending ? (
           <div className="space-y-1">
@@ -61,26 +120,33 @@ export function SessionSidebar({
               <div key={index} className="h-9 animate-pulse rounded-md bg-muted/50" />
             ))}
           </div>
-        ) : list.length === 0 ? (
+        ) : filteredList.length === 0 ? (
           <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-            No chats yet. Create one to get started.
+            {search ? "No chats match your filter." : "No chats yet. Create one to get started."}
           </p>
         ) : (
           <>
-            <ul className="space-y-0.5">
-              {active.map((session) => (
-                <SessionRow
-                  key={session.id}
-                  session={session}
-                  isActive={session.id === activeSessionId}
-                  onSelect={onSelect}
-                />
-              ))}
-            </ul>
+            {dateGroups.map((group) => (
+              <div key={group.label} className="mb-3">
+                <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {group.label}
+                </p>
+                <ul className="space-y-0.5">
+                  {group.items.map((session) => (
+                    <SessionRow
+                      key={session.id}
+                      session={session}
+                      isActive={session.id === activeSessionId}
+                      onSelect={onSelect}
+                    />
+                  ))}
+                </ul>
+              </div>
+            ))}
 
             {archived.length > 0 ? (
-              <>
-                <p className="px-2 pb-1 pt-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <div className="mt-2 border-t border-border pt-2">
+                <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Archived
                 </p>
                 <ul className="space-y-0.5">
@@ -93,7 +159,7 @@ export function SessionSidebar({
                     />
                   ))}
                 </ul>
-              </>
+              </div>
             ) : null}
           </>
         )}

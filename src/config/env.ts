@@ -47,9 +47,9 @@ const clientSchema = z.object({
    * streaming UI be built and reviewed.
    */
   NEXT_PUBLIC_MOCK: z
-    .enum(["0", "1"])
+    .enum(["0", "1", "false", "true"])
     .default("0")
-    .transform((v) => v === "1"),
+    .transform((v) => v === "1" || v === "true"),
 });
 
 export type ClientEnv = z.infer<typeof clientSchema>;
@@ -82,9 +82,10 @@ export function getServerEnv(): ServerEnv {
   return cachedServerEnv;
 }
 
+let cachedClientEnv: ClientEnv | undefined;
 /** Validated public env, safe to read from client components. */
 export function getClientEnv(): ClientEnv {
-  return parseOrThrow(
+  cachedClientEnv ??= parseOrThrow(
     clientSchema,
     {
       NEXT_PUBLIC_ENABLE_ANALYZER: process.env.NEXT_PUBLIC_ENABLE_ANALYZER,
@@ -92,6 +93,7 @@ export function getClientEnv(): ClientEnv {
     },
     "client",
   );
+  return cachedClientEnv;
 }
 
 /**

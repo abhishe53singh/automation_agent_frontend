@@ -5,11 +5,11 @@ import { Send, Square } from "lucide-react";
 
 import { useSubmitTurn } from "../hooks";
 import { turnCreateSchema, type ChatSession, type ChatTurn } from "../schemas";
-import { Button, Select } from "@/shared/ui";
+import { Button, Select, Textarea } from "@/shared/ui";
 import type { StreamState } from "../use-turn-stream";
 
 /**
- * The message composer (item 34) and the branch affordance (item 33).
+ * The message composer (item 34, 82) and the branch affordance (item 33).
  *
  * When a branch point is armed, the NEXT submission carries
  * `parent_turn_id`, which is exactly how the backend grows the conversation
@@ -41,16 +41,21 @@ export function Composer({
   const [error, setError] = React.useState<string | undefined>();
   /** Per-round model override; empty means "use the session's enabled set". */
   const [modelOverride, setModelOverride] = React.useState("");
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
   const submit = useSubmitTurn(session.id);
   const enabled = session.models.filter((model) => model.is_enabled);
   const busy = submit.isPending;
   const streaming = streamState === "connecting" || streamState === "streaming";
 
-  const send = (event: React.FormEvent) => {
-    event.preventDefault();
+  const send = (event?: React.FormEvent) => {
+    event?.preventDefault();
+    if (busy) return; // Guard against double-submit (K9)
+    const trimmed = content.trim();
+    if (!trimmed) return;
+
     const parsed = turnCreateSchema.safeParse({
-      content,
+      content: trimmed,
       parent_turn_id: branchFrom?.id,
       model_ids: modelOverride ? [modelOverride] : undefined,
     });
@@ -68,6 +73,8 @@ export function Composer({
       onSuccess: (turn) => {
         setContent("");
         onSubmitted?.(turn);
+        // Restore focus to textarea after submit
+        setTimeout(() => textareaRef.current?.focus(), 50);
       },
     });
   };
@@ -92,10 +99,12 @@ export function Composer({
         </div>
       ) : null}
 
-      <textarea
+      <Textarea
+        ref={textareaRef}
         value={content}
         onChange={(event) => setContent(event.target.value)}
-        rows={3}
+        rows={2}
+        maxRows={8}
         placeholder={
           enabled.length > 0
             ? `Ask ${enabled.length} model${enabled.length === 1 ? "" : "s"}…`
@@ -103,12 +112,12 @@ export function Composer({
         }
         aria-label="Message"
         aria-invalid={error ? true : undefined}
-        className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+        disabled={busy}
         onKeyDown={(event) => {
-          // Enter sends, Shift+Enter inserts a newline.
-          if (event.key === "Enter" && !event.shiftKey) {
+          // Enter sends, Shift+Enter inserts a newline. Guard against IME composition (K9).
+          if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault();
-            send(event);
+            send();
           }
         }}
       />
