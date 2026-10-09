@@ -1,9 +1,12 @@
 "use client";
 
+import { KeyRound } from "lucide-react";
+
 import { useDeleteProvider, useProviders, useUpdateProvider } from "../hooks";
 import { ProviderDialog } from "./ProviderDialog";
 import type { LlmProvider } from "../schemas";
 import {
+  Badge,
   Button,
   Card,
   CardContent,
@@ -26,8 +29,8 @@ export function ProviderList() {
           <div className="space-y-1.5">
             <CardTitle>Providers</CardTitle>
             <CardDescription>
-              A provider groups models served by one vendor. Keys are referenced by environment
-              variable name only — secrets never pass through the browser.
+              A provider groups models served by one vendor. API keys are stored securely in the
+              database and never returned — only a key-present flag is shown.
             </CardDescription>
           </div>
           <ProviderDialog />
@@ -80,10 +83,21 @@ function ProviderRow({ provider }: { provider: LlmProvider }) {
           {provider.display_name ? (
             <span className="ml-2 text-xs font-normal text-muted-foreground">{provider.name}</span>
           ) : null}
+          {provider.has_api_key ? (
+            <Badge
+              variant="success"
+              className="ml-2 align-middle"
+              title="API key stored securely in the database"
+            >
+              <KeyRound aria-hidden />
+              Key stored
+            </Badge>
+          ) : null}
         </p>
         <p className="truncate text-xs text-muted-foreground">
           {provider.base_url ?? "Default base URL"}
-          {provider.api_key_env ? ` · key from ${provider.api_key_env}` : " · no key env set"}
+          {provider.api_key_env ? ` · env: ${provider.api_key_env}` : ""}
+          {provider.has_api_key ? "" : " · no key configured"}
         </p>
         {conflict ? (
           <p role="alert" className="text-xs text-destructive">

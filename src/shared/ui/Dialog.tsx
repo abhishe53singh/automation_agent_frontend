@@ -32,12 +32,21 @@ export function Dialog({
   className,
 }: DialogProps) {
   const panelRef = React.useRef<HTMLDivElement>(null);
+  // `onClose` is declared inline in every caller (`const close = () => ...`),
+  // so its identity changes on every keystroke. Depending on it directly
+  // would re-run the effect below on each render and call `panel.focus()`,
+  // yanking focus out of the input after a single character. Keep the latest
+  // callback in a ref and depend only on `open`.
+  const onCloseRef = React.useRef(onClose);
+  React.useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   React.useEffect(() => {
     if (!open) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") onCloseRef.current();
     };
     document.addEventListener("keydown", onKeyDown);
 
@@ -49,7 +58,7 @@ export function Dialog({
       document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = previousOverflow;
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

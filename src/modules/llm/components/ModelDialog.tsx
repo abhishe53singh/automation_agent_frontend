@@ -104,8 +104,9 @@ export function ModelDialog({
             label="Name"
             value={form.name}
             required
-            placeholder="gpt-4o-mini"
-            hint="Unique within the provider."
+            maxLength={255}
+            placeholder="meta/llama-3.1-8b-instruct:free"
+            hint="Plain model ID, unique within the provider — slashes, colons and dots allowed (e.g. gpt-4o, claude-3-5-sonnet-20241022, meta/llama-3.1-8b-instruct:free)."
             onChange={(event) => field("name")(event.target.value)}
           />
           <Input

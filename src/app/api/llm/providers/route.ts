@@ -6,8 +6,9 @@ import { callUpstream } from "@/server/upstream";
 /**
  * LLM providers (.agent/API.md #20-#21, upstream #20-#21).
  *
- * No secrets travel through here: a provider stores only the NAME of the env
- * var holding its key (`api_key_env`), never the key itself.
+ * `api_key` is accepted here and stored in the DB by the backend. Responses
+ * never echo it back — they carry only the safe `has_api_key` boolean (plus
+ * the legacy `api_key_env` env-var name).
  */
 
 export async function GET(): Promise<NextResponse> {
@@ -26,6 +27,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       name,
       display_name: displayName,
       base_url: baseUrl,
+      api_key: apiKey,
       api_key_env: apiKeyEnv,
       is_active: isActive,
     } = (body ?? {}) as Record<string, unknown>;
@@ -36,6 +38,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
     if (baseUrl !== undefined && baseUrl !== null && typeof baseUrl !== "string") {
       throw badRequest("`base_url` must be a string.");
+    }
+    if (apiKey !== undefined && apiKey !== null && typeof apiKey !== "string") {
+      throw badRequest("`api_key` must be a string.");
     }
     if (apiKeyEnv !== undefined && apiKeyEnv !== null && typeof apiKeyEnv !== "string") {
       throw badRequest("`api_key_env` must be a string.");
@@ -48,6 +53,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (typeof displayName === "string" && displayName.trim())
       payload.display_name = displayName.trim();
     if (typeof baseUrl === "string" && baseUrl.trim()) payload.base_url = baseUrl.trim();
+    if (typeof apiKey === "string" && apiKey.trim()) payload.api_key = apiKey.trim();
     if (typeof apiKeyEnv === "string" && apiKeyEnv.trim()) payload.api_key_env = apiKeyEnv.trim();
     if (typeof isActive === "boolean") payload.is_active = isActive;
 

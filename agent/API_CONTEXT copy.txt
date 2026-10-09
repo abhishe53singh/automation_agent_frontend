@@ -1,0 +1,664 @@
+PROJECT CONTEXT - AUTOMATION AGENT BACKEND (FastAPI)
+=====================================================
+
+Source of truth: routers in app/routers/* mounted by main.py.
+Total: 80 API operations (79 router routes + GET / health).
+Live docs: /docs (Swagger UI), /redoc, /openapi.json.
+
+1. OVERVIEW
+-----------
+- FastAPI application providing JWT authentication, projects + memberships,
+  a multi-model chat subsystem, knowledge ingestion/retrieval (files,
+  documents, knowledge bases, embeddings), retrieval runs, and citations
+  that ground model answers to retrieved passages.
+- Layout:
+  main.py               app factory, router registration, health route,
+                        custom OpenAPI (BearerAuth security scheme)
+  app/routers/          auth, chat, citations, documents, files (router +
+                        jobs_router), knowledge, llm, projects, retrievals,
+                        users
+  app/schemas/          Pydantic request/response models (auth, user,
+                        project, llm, chat, knowledge)
+  app/services/         business logic (auth, chat, project, llm,
+                        knowledge, retrieval, embeddings, parsing, storage)
+  app/dependencies/     get_current_user, require_admin, project access
+                        deps (get/editable/owned project), knowledge deps
+  app/models/           SQLAlchemy ORM tables
+  app/core/             config (env), security (JWT), permissions (roles)
+- Routers mounted in order: auth, chat, citations, documents, files,
+  files.jobs_router, knowledge, llm, projects, retrievals, users.
+
+2. CONVENTIONS
+--------------
+- Auth header: Authorization: Bearer <access_token> (JWT), obtained via
+  the /auth/login or /auth/google endpoints and rotated via /auth/refresh.
+  Every protected endpoint injects the token through the get_current_user
+  dependency (current_user: User = Depends(get_current_user)), which
+  resolves the JWT subject to an active User row: 401 for a missing/
+  invalid/expired token, 403 for an inactive account.
+  Public endpoints: GET /, all /auth/* routes, GET /files/supported-types.
+  All other endpoints require the bearer token. Admin-only endpoints
+  additionally require the caller's email in the ADMIN_EMAILS env
+  allowlist (comma-separated); if unset, admin calls return 403.
+- Pagination: list endpoints accept limit (1-200, default 50) and
+  offset (>=0, default 0) query parameters.
+- Errors: {"detail": "..."} body (some endpoints return an object detail).
+  Access/role violations on owned resources are masked as 404 so ids
+  cannot be enumerated.
+- Project roles: owner > admin > member > viewer. Reads = any role;
+  settings/membership writes = owner|admin; project delete = owner only;
+  insufficient role -> 404 (never 403).
+- Content types: JSON bodies; application/x-www-form-urlencoded for
+  /auth/login; multipart/form-data for file upload; text/event-stream for
+  chat SSE; binary stream for file download.
+- Status codes: creates return 201 (exceptions noted), deletes 204,
+  queued ingestion 202.
+
+3. ENDPOINTS
+------------
+
+[A] Health
+  GET /
+      Public liveness probe. Response: {"message": "API is running"}.
+
+[B] Authentication (/auth) - all Public (no token required)
+  POST /auth/signup
+      Create a user account; 400 if username or email already exists.
+      req  UserCreate { username:str, email:str, password:str }
+      resp UserResponse (200)
+  POST /auth/register
+      Alias of /auth/signup (same handler, same payload and response).
+  POST /auth/login
+      Password login; the username field accepts username or email.
+      req  form-urlencoded { username:str (username or email), password:str }
+      resp Token (200) { access_token, refresh_token, token_type:"bearer" }
+      401 bad credentials, 403 inactive account.
+  POST /auth/forgot-password
+      Issue a single-use 30-minute password reset token. No email is sent
+      in this configuration: raw token returned for an active account,
+      nulls otherwise (same response shape either way).
+      req  { email:str }
+      resp PasswordResetIssued { message, reset_token|null, expires_at|null }
+  POST /auth/reset-password
+      Set a new password using the reset token.
+      req  { token:str, new_password:str }
+      resp MessageResponse { message }; 400 invalid/reused/expired token,
+      403 inactive account.
+  POST /auth/google
+      Login via Google ID token; user is found or auto-created from claims.
+      req  { id_token:str }
+      resp Token (200); 401 invalid token, 403 inactive,
+      503 if GOOGLE_CLIENT_ID is not configured.
+  POST /auth/refresh
+      Rotate a refresh token into a new pair (presented token is revoked).
+      req  { refresh_token:str }
+      resp Token (200); 401 unknown/revoked/expired, 403 owner inactive.
+  POST /auth/logout
+      Revoke the presented refresh token; idempotent (unknown/revoked
+      tokens still succeed). Access tokens simply expire.
+      req  { refresh_token:str }
+      resp MessageResponse { message: "Logged out" }
+
+[C] Users (/users)
+  GET /users/me
+      Bearer. Return the current authenticated user.
+      resp UserResponse (200); 401 invalid token, 403 inactive.
+  PATCH /users/{user_id}/status
+      Bearer + admin (ADMIN_EMAILS). Activate/deactivate an account;
+      deactivation also revokes that user's refresh tokens. Admins cannot
+      change their own status (400); 404 unknown user.
+      req  { is_active:bool }
+      resp UserResponse (200)
+
+[D] Projects (/projects)
+  GET /projects
+      Bearer. Caller's projects, each with the caller's role.
+      resp ProjectResponse[] (200)
+  POST /projects
+      Bearer. Create a project; the caller becomes its owner.
+      req  ProjectCreate { name:str (1-150), description?:str (<=2000),
+           instructions?:str (<=20000) }
+      resp ProjectResponse (201) with role "owner".
+  GET /projects/{project_id}
+      Bearer (any role). Project detail with caller's role; 404 if the
+      caller is not a member.
+      resp ProjectResponse (200)
+  PATCH /projects/{project_id}
+      Bearer (owner|admin). Partial update of name/description/
+      instructions.
+      req  ProjectUpdate { name?, description?, instructions? }
+      resp ProjectResponse (200)
+  DELETE /projects/{project_id}
+      Bearer (owner only). Delete the project (memberships cascade).
+      resp 204; 404 for non-owners.
+  GET /projects/{project_id}/members
+      Bearer (any role). Members, each with its embedded user record.
+      resp ProjectMemberResponse[] (200)
+  POST /projects/{project_id}/members
+      Bearer (owner|admin). Invite an existing user identified by exactly
+      one of user_id/email. 404 unknown user; 400 if the target is already
+      the owner or already a member.
+      req  ProjectMemberCreate { user_id?:uuid, email?:str,
+           role?:"admin|member|viewer" = "member" }
+      resp ProjectMemberResponse (201)
+  PATCH /projects/{project_id}/members/{member_id}
+      Bearer (owner|admin). Change a member's role; 400 when attempting to
+      change the project owner's role.
+      req  ProjectMemberUpdate { role:"admin|member|viewer" }
+      resp ProjectMemberResponse (200)
+  DELETE /projects/{project_id}/members/{member_id}
+      Bearer (owner|admin). Remove a member; 400 when attempting to remove
+      the owner. resp 204
+
+[E] LLM Registry (/llm) - Bearer; global registry, any authenticated caller
+  GET /llm/providers
+      resp LlmProviderResponse[] (200)
+  POST /llm/providers
+      Register a provider; 400 if the name already exists.
+      req  { name:str, display_name?:str, base_url?:str,
+           api_key_env?:str, is_active?:bool = true }
+      resp LlmProviderResponse (201)
+  GET /llm/providers/{provider_id}
+      resp LlmProviderResponse (200); 404 unknown.
+  PATCH /llm/providers/{provider_id}
+      Partial update of display_name/base_url/api_key_env/is_active.
+      resp LlmProviderResponse (200); 404 unknown.
+  DELETE /llm/providers/{provider_id}
+      resp 204; its models cascade away; 409 if its models are referenced
+      by existing chat responses (RESTRICT FK); 404 unknown.
+  GET /llm/models
+      Optional query parameter provider_id (filter).
+      resp LlmModelResponse[] (200)
+  POST /llm/models
+      Register a model under a provider with per-million-token costs and
+      limits. 400 unknown provider or duplicate name within the provider.
+      req  { provider_id:uuid, name:str, display_name?:str,
+           input_cost_per_million:dec, output_cost_per_million:dec,
+           context_window?:int, max_output_tokens?:int,
+           is_active?:bool = true }
+      resp LlmModelResponse (201)
+  GET /llm/models/{model_id}
+      resp LlmModelResponse (200); 404 unknown.
+  PATCH /llm/models/{model_id}
+      Partial update of name/display_name/costs/limits/is_active.
+      400 null or duplicate name within the provider.
+      resp LlmModelResponse (200); 404 unknown.
+  DELETE /llm/models/{model_id}
+      resp 204; 409 if the model has chat response history (RESTRICT FK);
+      404 unknown.
+
+[F] Chat (/chat) - Bearer on all; sessions are caller-owned, a foreign
+    session resolves as 404 (never 403)
+  POST /chat/sessions
+      Create a chat, optionally scoped to a project and pre-attached to
+      active registry models (one response per model per round).
+      404 unknown/inaccessible project; 400 unknown/inactive model id.
+      req  { title?:str (<=200), project_id?:uuid, model_ids?:uuid[] }
+      resp ChatSessionResponse (201) including models[].
+  GET /chat/sessions
+      Caller's chats; archived only when include_archived=true.
+      req  query { project_id?:uuid, include_archived?:bool = false }
+      resp ChatSessionResponse[] (200) with attached models.
+  GET /chat/sessions/{session_id}
+      resp ChatSessionResponse (200) with attached models.
+  PATCH /chat/sessions/{session_id}
+      Rename and/or archive/unarchive (is_archived maps to archived_at).
+      req  { title?:str (<=200), is_archived?:bool }
+      resp ChatSessionResponse (200)
+  DELETE /chat/sessions/{session_id}
+      resp 204; turns/messages/model responses cascade.
+  PUT /chat/sessions/{session_id}/models
+      Replace the entire model set declaratively; empty list detaches all.
+      400 for unknown/inactive model ids.
+      req  { model_ids:uuid[] }
+      resp ChatSessionResponse (200)
+  PATCH /chat/sessions/{session_id}/models/{model_id}
+      Enable/disable one attached model for new rounds (no detach).
+      req  { is_enabled:bool }
+      resp ChatSessionModelResponse (200); 404 not attached.
+  POST /chat/sessions/{session_id}/turns
+      Submit one round: creates the user message, the turn, and one
+      pending LlmResponse per enabled session model (or per-round
+      model_ids override). parent_turn_id branches the conversation tree.
+      400 validation errors (e.g. no enabled models).
+      req  { content:str (min 1), parent_turn_id?:uuid, model_ids?:uuid[] }
+      resp ChatTurnResponse (201) with user_message + llm_responses.
+  GET /chat/sessions/{session_id}/turns
+      Rounds: top-level, or direct children of parent_turn_id when given.
+      req  query { parent_turn_id?:uuid }
+      resp ChatTurnResponse[] (200).
+  GET /chat/sessions/{session_id}/messages
+      resp ChatMessageResponse[] (200) in insertion order.
+  GET /chat/sessions/{session_id}/responses/{response_id}
+      resp LlmResponseResponse (200); 404 if not part of this session.
+  PATCH /chat/sessions/{session_id}/responses/{response_id}
+      Provider-adapter write path: record or correct one model response
+      (partial update; only sent fields change).
+      req  LlmResponseUpdate { content?, status?:"pending|completed|failed",
+           input/output/total_tokens?:int >=0, input/output/total_cost?:dec
+           >=0, latency_ms?:int >=0, finish_reason?:str (<=100),
+           error_message?:str (<=4000) }
+      resp LlmResponseResponse (200)
+  GET /chat/sessions/{session_id}/turns/{turn_id}/stream
+      SSE stream (text/event-stream): "response" event whenever a row
+      changes (data = LlmResponseResponse JSON), ": keep-alive" every 1s,
+      final "done" event when every response is completed/failed, or
+      "timeout" after 300s. Polling based (1s DB poll), not provider token
+      streaming. done/timeout data: { message_id, responses:int }.
+
+[G] Files & Ingestion (/files, /ingestion-jobs) - Bearer
+  POST /files
+      Upload a file to the knowledge store (bytes stored under a generated
+      name; client filename never used as a path).
+      415 unsupported extension, 413 over MAX_UPLOAD_SIZE_BYTES,
+      400 empty file, 404 unknown/inaccessible project.
+      req  multipart/form-data { file:binary (required),
+           project_id?:uuid (form field) }
+      resp FileResponse (201)
+  GET /files/supported-types
+      Public. Extensions the ingestion pipeline can parse.
+      resp str[] (200): .txt .text .log .md .markdown .rst .csv .tsv
+      .json .jsonl .yaml .yml .toml .ini .cfg .xml .sql .py .js .ts .java
+      .sh .html .htm .pdf .docx .xlsx
+  GET /files
+      Caller's uploads; query { project_id?:uuid }.
+      resp FileResponse[] (200)
+  GET /files/{file_id}
+      resp FileResponse (200); 404 foreign/unknown.
+  PATCH /files/{file_id}
+      Rename and/or re-scope to another project (404 if project bad).
+      req  { filename?:str (1-255), project_id?:uuid }
+      resp FileResponse (200)
+  DELETE /files/{file_id}
+      Deletes the row (documents/chunks/embeddings cascade) and the bytes.
+      resp 204
+  GET /files/{file_id}/download
+      Binary stream with original filename and stored content type.
+      410 Gone if the bytes are missing from disk.
+  POST /files/{file_id}/ingest
+      Parse -> chunk -> embed an uploaded file. run_inline=true does the
+      work synchronously; false queues the job as pending for the
+      background worker. With knowledge_base_id, the KB's chunking/
+      embedding config wins over request defaults and the resulting
+      document is attached to that KB. 422 on ingestion failure (detail
+      contains message + current job state).
+      req  { knowledge_base_id?:uuid, chunk_size?:int (50-20000),
+           chunk_overlap?:int (0-10000), run_inline?:bool = true,
+           embedding_provider?:"local|openai|cohere|voyage|azure-openai|
+           gemini" = "local", embedding_model?:str (<=150),
+           embedding_dimension?:int (8-8192) }
+      resp IngestionJobResult (200) { job, document_id?, chunk_count,
+      embedding_count }
+  POST /ingestion-jobs
+      Queue ingestion by file_id (same driver as /files/{id}/ingest; file
+      id in body; embedding overrides not accepted, KB config applies).
+      404 unknown/foreign file.
+      req  { file_id:uuid, knowledge_base_id?:uuid, chunk_size?:int,
+           chunk_overlap?:int, run_inline?:bool = true }
+      resp IngestionJobResult (202)
+  GET /ingestion-jobs
+      Job history; query { file_id?:uuid,
+      status?:"pending|running|succeeded|failed|cancelled" }.
+      resp IngestionJobResponse[] (200)
+  GET /ingestion-jobs/{job_id}
+      resp IngestionJobResponse (200); 404 foreign/unknown.
+
+[H] Documents (/documents) - Bearer; caller-owned (404 foreign)
+  POST /documents
+      Create a document from inline text and index it during the request
+      (chunked + embedded, searchable immediately; the no-upload path).
+      404 unknown/inaccessible project; 400 embedding-provider failure
+      (the document is rolled back).
+      req  { title:str (1-300), text:str (min 1), project_id?:uuid,
+           language?:str (<=20), metadata_json?:object }
+      resp DocumentResponse (201)
+  GET /documents
+      query { project_id?:uuid,
+      status?:"pending|parsed|chunked|embedded|failed" }
+      resp DocumentResponse[] (200)
+  GET /documents/{document_id}
+      resp DocumentResponse (200); 404 foreign/unknown.
+  PATCH /documents/{document_id}
+      Update title, project scope and/or metadata (partial).
+      req  { title?:str (1-300), project_id?:uuid, metadata_json?:object }
+      resp DocumentResponse (200); 404 bad project.
+  DELETE /documents/{document_id}
+      resp 204; chunks and embeddings cascade.
+  GET /documents/{document_id}/chunks
+      resp DocumentChunkResponse[] (200) in chunk_index order.
+  GET /documents/{document_id}/embeddings
+      Embedding metadata only; vectors are never returned.
+      resp EmbeddingResponse[] (200)
+  GET /documents/{document_id}/chunk-count
+      resp int (200) - a bare JSON number, not an object.
+  POST /documents/{document_id}/embeddings
+      Reindex: source text reassembled from stored chunks, re-chunked and
+      re-embedded (chunk indexes rebuilt; citations to removed chunks keep
+      their captured quote). 409 if the document has no chunks (re-ingest
+      instead); 400 embedding-provider failure.
+      req  { chunk_size?:int (50-20000), chunk_overlap?:int (0-10000),
+           embedding_provider?:"local|openai|cohere|voyage|azure-openai|
+           gemini" = "local", embedding_model?:str (<=150),
+           embedding_dimension?:int (8-8192) }
+      resp IndexResult (200) { document_id, chunk_count, embedding_count }
+
+[I] Knowledge Bases (/knowledge-bases) - Bearer; caller-owned (404)
+  POST /knowledge-bases
+      Create a retrieval collection. The embedding provider is probed up
+      front (400 unusable provider before anything is stored); 409
+      duplicate name; 404 unknown/inaccessible project. Chunk settings are
+      fixed at creation (changing them means re-ingesting).
+      req  { name:str (1-200), description?:str (<=4000),
+           project_id?:uuid,
+           embedding_provider?:"local|openai|cohere|voyage|azure-openai|
+           gemini" = "local", embedding_model?:str (<=150),
+           embedding_model_id?:uuid, embedding_dimension?:int (8-8192),
+           chunk_size?:int (50-20000), chunk_overlap?:int (0-10000),
+           default_top_k?:int (1-50) = 5, min_score?:float (-1..1) = 0.0 }
+      resp KnowledgeBaseResponse (201)
+  GET /knowledge-bases
+      query { project_id?:uuid, include_inactive?:bool = true }
+      resp KnowledgeBaseResponse[] (200) with document/chunk counts.
+  GET /knowledge-bases/{knowledge_base_id}
+      resp KnowledgeBaseResponse (200); 404 foreign/unknown.
+  PATCH /knowledge-bases/{knowledge_base_id}
+      Partial update; 409 if the new name is taken; 404 bad project.
+      req  { name?:str (1-200), description?:str (<=4000),
+           project_id?:uuid, default_top_k?:int (1-50),
+           min_score?:float (-1..1), is_active?:bool }
+      resp KnowledgeBaseResponse (200)
+  DELETE /knowledge-bases/{knowledge_base_id}
+      Deletes the knowledge base only; the documents are kept. resp 204
+  GET /knowledge-bases/{knowledge_base_id}/documents
+      Attached documents with their membership rows.
+      resp KnowledgeBaseDocumentResponse[] (200) with embedded document.
+  PUT /knowledge-bases/{knowledge_base_id}/documents
+      Declarative replace of the entire document set. All-or-nothing:
+      any unknown/foreign id fails the whole request with 404 listing the
+      missing ids. Refreshes document/chunk counts.
+      req  { document_ids:uuid[] }
+      resp KnowledgeBaseDocumentResponse[] (200) refreshed set.
+  PATCH /knowledge-bases/{knowledge_base_id}/documents/{document_id}
+      Enable/disable one attached document for retrieval (stays
+      attached); refreshes counts. 404 if not attached.
+      req  { is_enabled:bool }
+      resp KnowledgeBaseDocumentResponse (200)
+  DELETE /knowledge-bases/{knowledge_base_id}/documents/{document_id}
+      Detach the document (document is kept); refreshes counts.
+      404 if not attached. resp 204
+  POST /knowledge-bases/{knowledge_base_id}/search
+      Cosine similarity search; persists the retrieval run and returns
+      ranked chunks + source documents + the retrieval id (referenced by
+      POST /citations for grounding). 409 if the KB is inactive.
+      req  { query:str (1-4000), top_k?:int (1-50),
+           min_score?:float (-1..1), document_ids?:uuid[],
+           strategy?:"cosine" = "cosine" }
+      resp RetrievalResponse (200) with results[].
+
+[J] Retrievals (/retrievals) - Bearer; caller-owned (404)
+  GET /retrievals
+      Retrieval history, newest first; query { knowledge_base_id?:uuid }.
+      resp RetrievalResponse[] (200) with results.
+  GET /retrievals/{retrieval_id}
+      resp RetrievalResponse (200) with ranked results (chunk + document).
+  GET /retrievals/{retrieval_id}/results
+      resp RetrievalResultResponse[] (200) - just the ranked results.
+
+[K] Citations (/citations) - Bearer; ownership enforced through
+    response -> message -> session -> owner (404 otherwise)
+  POST /citations
+      Attach a grounding citation to a model response. Prefer
+      retrieval_result_id (chunk, document, score, rank are inherited from
+      the stored retrieval result); otherwise pass chunk_id directly -
+      the validator requires one of the two. Ownership is checked on the
+      response, retrieval and chunk; document/file resolved from them.
+      req  { llm_response_id:uuid, retrieval_id?:uuid,
+           retrieval_result_id?:uuid, chunk_id?:uuid, document_id?:uuid,
+           file_id?:uuid, quote?:str (<=4000), score?:float (-1..1),
+           rank?:int (>=1) }
+      resp CitationResponse (201)
+  GET /citations
+      Citations of one response or one retrieval - at least one of
+      response_id/retrieval_id required (400 otherwise).
+      req  query { response_id?:uuid, retrieval_id?:uuid }
+      resp CitationResponse[] (200)
+  GET /citations/{citation_id}
+      resp CitationResponse (200); 404 unknown/foreign.
+  DELETE /citations/{citation_id}
+      resp 204; 404 unknown/foreign.
+
+4. SCHEMA REFERENCE - REQUEST PAYLOADS
+---------------------------------------
+  UserCreate { username:str, email:str, password:str }
+  ForgotPasswordRequest { email:str }
+  ResetPasswordRequest { token:str, new_password:str }
+  GoogleLoginRequest { id_token:str }
+  RefreshRequest { refresh_token:str }
+  LogoutRequest { refresh_token:str }
+  UserStatusUpdate { is_active:bool }
+  ProjectCreate { name:str (1-150), description?:str (<=2000),
+      instructions?:str (<=20000) }
+  ProjectUpdate { name?:str?, description?:str?, instructions?:str? }
+  ProjectMemberCreate { user_id?:uuid, email?:str (<=255),
+      role?:"admin|member|viewer" = "member" } - exactly one of
+      user_id/email (model validator), ownership cannot be granted
+  ProjectMemberUpdate { role:"admin|member|viewer" }
+  LlmProviderCreate { name:str, display_name?:str, base_url?:str,
+      api_key_env?:str, is_active?:bool = true }
+  LlmProviderUpdate { display_name?:str, base_url?:str,
+      api_key_env?:str, is_active?:bool }
+  LlmModelCreate { provider_id:uuid, name:str, display_name?:str,
+      input_cost_per_million:dec, output_cost_per_million:dec,
+      context_window?:int, max_output_tokens?:int, is_active?:bool = true }
+  LlmModelUpdate { name?, display_name?, input_cost_per_million?,
+      output_cost_per_million?, context_window?, max_output_tokens?,
+      is_active? }
+  ChatSessionCreate { title?:str (<=200), project_id?:uuid,
+      model_ids?:uuid[] }
+  ChatSessionUpdate { title?:str (<=200), is_archived?:bool }
+  ChatSessionModelsSet { model_ids:uuid[] }
+  ChatSessionModelUpdate { is_enabled:bool }
+  ChatTurnCreate { content:str (min 1), parent_turn_id?:uuid,
+      model_ids?:uuid[] }
+  LlmResponseUpdate { content?:str,
+      status?:"pending|completed|failed", input_tokens?:int >=0,
+      output_tokens?:int >=0, total_tokens?:int >=0,
+      input_cost?:dec >=0, output_cost?:dec >=0, total_cost?:dec >=0,
+      latency_ms?:int >=0, finish_reason?:str (<=100),
+      error_message?:str (<=4000) }
+  FileUpdate { filename?:str (1-255), project_id?:uuid }
+  IngestRequest { knowledge_base_id?:uuid, chunk_size?:int (50-20000),
+      chunk_overlap?:int (0-10000), run_inline?:bool = true,
+      embedding_provider?:"local|openai|cohere|voyage|azure-openai|gemini"
+      = "local", embedding_model?:str (<=150),
+      embedding_dimension?:int (8-8192) }
+  IngestionJobCreate { file_id:uuid, knowledge_base_id?:uuid,
+      chunk_size?:int (50-20000), chunk_overlap?:int (0-10000),
+      run_inline?:bool = true }
+  ReindexRequest { chunk_size?:int (50-20000),
+      chunk_overlap?:int (0-10000),
+      embedding_provider?:"local|openai|cohere|voyage|azure-openai|gemini"
+      = "local", embedding_model?:str (<=150),
+      embedding_dimension?:int (8-8192) }
+  DocumentCreate { title:str (1-300), text:str (min 1),
+      project_id?:uuid, language?:str (<=20), metadata_json?:object }
+  DocumentUpdate { title?:str (1-300), project_id?:uuid,
+      metadata_json?:object }
+  KnowledgeBaseCreate { name:str (1-200), description?:str (<=4000),
+      project_id?:uuid,
+      embedding_provider?:"local|openai|cohere|voyage|azure-openai|gemini"
+      = "local", embedding_model?:str (<=150), embedding_model_id?:uuid,
+      embedding_dimension?:int (8-8192), chunk_size?:int (50-20000),
+      chunk_overlap?:int (0-10000), default_top_k?:int (1-50) = 5,
+      min_score?:float (-1..1) = 0.0 }
+  KnowledgeBaseUpdate { name?:str (1-200), description?:str (<=4000),
+      project_id?:uuid, default_top_k?:int (1-50),
+      min_score?:float (-1..1), is_active?:bool }
+  KnowledgeBaseDocumentsSet { document_ids:uuid[] }
+  KnowledgeBaseDocumentUpdate { is_enabled:bool }
+  RetrievalRequest { query:str (1-4000), top_k?:int (1-50),
+      min_score?:float (-1..1), document_ids?:uuid[],
+      strategy?:"cosine" = "cosine" }
+  CitationCreate { llm_response_id:uuid, retrieval_id?:uuid,
+      retrieval_result_id?:uuid, chunk_id?:uuid, document_id?:uuid,
+      file_id?:uuid, quote?:str (<=4000), score?:float (-1..1),
+      rank?:int (>=1) } - requires retrieval_result_id or chunk_id
+      (model validator)
+
+5. SCHEMA REFERENCE - RESPONSE MODELS
+--------------------------------------
+  Token { access_token:str, refresh_token?:str, token_type:str }
+  PasswordResetIssued { message:str, reset_token:str|null,
+      expires_at:datetime|null }
+  MessageResponse { message:str }
+  UserResponse { id:uuid, username:str, email:str, is_active:bool }
+  ProjectResponse { id:uuid, user_id:uuid, name:str,
+      description:str|null, instructions:str|null, created_at:datetime,
+      updated_at:datetime, role?:str|null }
+  ProjectMemberResponse { id:uuid, project_id:uuid, user_id:uuid,
+      role:str, created_at:datetime, user?:UserResponse }
+  LlmProviderResponse { id:uuid, name:str, display_name:str|null,
+      base_url:str|null, api_key_env:str|null, is_active:bool,
+      created_at, updated_at }
+  LlmModelResponse { id:uuid, provider_id:uuid, name:str,
+      display_name:str|null, input_cost_per_million:dec,
+      output_cost_per_million:dec, context_window:int|null,
+      max_output_tokens:int|null, is_active:bool, created_at, updated_at }
+  ChatSessionResponse { id:uuid, user_id:uuid, project_id:uuid|null,
+      title:str|null, created_at, updated_at, archived_at:datetime|null,
+      models:ChatSessionModelResponse[] }
+  ChatSessionModelResponse { id:uuid, session_id:uuid, model_id:uuid,
+      is_enabled:bool, created_at, model?:LlmModelResponse }
+  ChatMessageResponse { id:uuid, session_id:uuid,
+      parent_message_id:uuid|null, role:str, content:str,
+      sequence_number:int|null, created_at, updated_at }
+  ChatTurnResponse { id:uuid, session_id:uuid,
+      parent_turn_id:uuid|null, user_message_id:uuid, created_at,
+      user_message?:ChatMessageResponse, llm_responses:
+      LlmResponseResponse[] }
+  LlmResponseResponse { id:uuid, message_id:uuid, model_id:uuid,
+      content:str|null, status:str, input_tokens:int|null,
+      output_tokens:int|null, total_tokens:int|null,
+      input_cost:dec|null, output_cost:dec|null, total_cost:dec|null,
+      latency_ms:int|null, finish_reason:str|null,
+      error_message:str|null, created_at, completed_at:datetime|null }
+  FileResponse { id:uuid, user_id:uuid, project_id:uuid|null,
+      filename:str, content_type:str|null, size_bytes:int,
+      storage_path:str, sha256:str|null, status:str,
+      metadata_json:object|null, created_at, updated_at }
+  IngestionJobResponse { id:uuid, file_id:uuid, user_id:uuid,
+      project_id:uuid|null, status:str, stage:str, attempts:int,
+      max_attempts:int, chunk_size:int|null, chunk_overlap:int|null,
+      error_message:str|null, started_at:datetime|null,
+      completed_at:datetime|null, created_at, updated_at }
+  IngestionJobResult { job:IngestionJobResponse,
+      document_id:uuid|null, chunk_count:int = 0,
+      embedding_count:int = 0 }
+  IndexResult { document_id:uuid, chunk_count:int, embedding_count:int }
+  DocumentResponse { id:uuid, user_id:uuid, project_id:uuid|null,
+      file_id:uuid|null, ingestion_job_id:uuid|null, title:str,
+      source_type:str, mime_type:str|null, language:str|null,
+      page_count:int|null, word_count:int, char_count:int,
+      chunk_count:int, checksum:str|null, status:str,
+      metadata_json:object|null, created_at, updated_at }
+  DocumentChunkResponse { id:uuid, document_id:uuid, chunk_index:int,
+      content:str, token_count:int, char_count:int,
+      page_number:int|null, start_offset:int|null, end_offset:int|null,
+      heading:str|null, metadata_json:object|null, created_at }
+  EmbeddingResponse { id:uuid, chunk_id:uuid, document_id:uuid,
+      model_id:uuid|null, provider:str, model_name:str, dimension:int,
+      normalized:bool, metadata_json:object|null, created_at }
+  KnowledgeBaseResponse { id:uuid, user_id:uuid, project_id:uuid|null,
+      name:str, description:str|null, embedding_model_id:uuid|null,
+      embedding_provider:str, embedding_model:str,
+      embedding_dimension:int, chunk_size:int, chunk_overlap:int,
+      default_top_k:int, min_score:float, document_count:int,
+      chunk_count:int, is_active:bool, created_at, updated_at }
+  KnowledgeBaseDocumentResponse { id:uuid, knowledge_base_id:uuid,
+      document_id:uuid, is_enabled:bool, created_at,
+      document?:DocumentResponse }
+  RetrievalResponse { id:uuid, user_id:uuid, project_id:uuid|null,
+      knowledge_base_id:uuid|null, query:str, strategy:str, top_k:int,
+      min_score:float, result_count:int, status:str,
+      error_message:str|null, latency_ms:int|null, created_at,
+      completed_at:datetime|null, results:RetrievalResultResponse[] }
+  RetrievalResultResponse { id:uuid, retrieval_id:uuid, chunk_id:uuid,
+      document_id:uuid|null, score:float, rank:int, created_at,
+      chunk?:DocumentChunkResponse, document?:DocumentResponse|null }
+  CitationResponse { id:uuid, llm_response_id:uuid,
+      retrieval_id:uuid|null, retrieval_result_id:uuid|null,
+      chunk_id:uuid|null, document_id:uuid|null, file_id:uuid|null,
+      quote:str|null, score:float|null, rank:int|null, created_at }
+
+Enums / allowed values:
+  IngestionJobStatus: pending | running | succeeded | failed | cancelled
+  DocumentStatus:     pending | parsed | chunked | embedded | failed
+  LlmResponseStatus:  pending | completed | failed
+  ChatMessageRole:    system | user | assistant | tool
+  EmbeddingProvider:  local | openai | cohere | voyage | azure-openai |
+                      gemini
+  RetrievalStrategy:  cosine (only supported value)
+  ProjectMemberRole:  admin | member | viewer
+
+6. NOTABLE BEHAVIORS & CONFIG
+------------------------------
+- JWT: access tokens (~30 min) cannot be revoked before expiry; only
+  refresh tokens are revocable (logout, account deactivation, rotation).
+- Refresh rotation: POST /auth/refresh revokes the presented token and
+  issues a new pair; reuse of a revoked token -> 401.
+- Password reset: raw single-use 30-minute token returned directly in the
+  response (no email delivery is implemented).
+- Google login: ID-token verification only; no OAuth redirect flow yet.
+- ADMIN_EMAILS: comma-separated allowlist for require_admin; must be set
+  in the environment or every admin endpoint returns 403.
+- Chat fan-out: a turn creates one pending LlmResponse per enabled model;
+  responses stay pending until a client/worker PATCHes the response
+  endpoint (the provider-adapter write path). The SSE stream polls the
+  database at 1s intervals with a 300s ceiling.
+- Deletion rules: providers/models referenced by llm_responses are
+  RESTRICT (delete -> 409); deleting a knowledge base keeps its
+  documents; deleting a document/file cascades chunks + embeddings;
+  deleting a file also removes stored bytes.
+- Uploads: MAX_UPLOAD_SIZE_BYTES (env) limit -> 413; storage path is
+  generated server-side and sha256 checksum is recorded; supported
+  extensions are enforced at upload time (415).
+- Ingestion: run_inline=true runs synchronously, false queues a pending
+  job for the background worker; when knowledge_base_id is given, KB
+  chunk/embed settings override request defaults; 422 on failure with the
+  current job state in detail.
+- Retrieval runs are persisted (retrieval id) so citations can link a
+  model answer to the exact grounding passages; POST /citations can also
+  reference a chunk directly.
+- Ownership masking: foreign chat sessions, files, documents, knowledge
+  bases, retrievals, citations and insufficient project roles all return
+  404 (never 403) to prevent id enumeration.
+- Embedding vectors are never exposed by any endpoint (metadata only).
+- Document from inline text (POST /documents) is indexed within the
+  request; if embedding fails the document is rolled back (400).
+
+7. ENDPOINT COUNT BY SECTION
+-----------------------------
+  [A] Health                    1   (GET /)
+  [B] Authentication            8   (/auth: signup, register, login,
+                                    forgot-password, reset-password,
+                                    google, refresh, logout)
+  [C] Users                     2
+  [D] Projects                  9   (5 project + 4 member routes)
+  [E] LLM Registry             10   (5 provider + 5 model routes)
+  [F] Chat                     13
+  [G] Files & Ingestion        11   (8 /files + 3 /ingestion-jobs)
+  [H] Documents                 9
+  [I] Knowledge Bases          10
+  [J] Retrievals                3
+  [K] Citations                 4
+                                ----
+  TOTAL                        80   operations (79 router routes + health)
+
+8. LIVE DOCUMENTATION
+----------------------
+- OpenAPI JSON: /openapi.json (custom schema in main.py adds the
+  BearerAuth security scheme and per-operation security blocks).
+- Swagger UI: /docs    ReDoc: /redoc
+- This file mirrors app/routers/*; regenerate it when routes change.
+
+END OF CONTEXT

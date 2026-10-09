@@ -1,5 +1,7 @@
 /** LLM registry module public surface (.agent/API_CONTEXT.txt §1). */
 export {
+  buildStoredModelChatRequest,
+  chatCompletion,
   createModel,
   createProvider,
   deleteModel,
@@ -11,6 +13,9 @@ export {
   llmProviderSchema,
   updateModel,
   updateProvider,
+  type ChatCompletionRequest,
+  type ChatCompletionResponse,
+  type LlmChatMessage,
   type LlmModel,
   type LlmProvider,
   type ModelCreate,
@@ -29,6 +34,9 @@ export {
   useUpdateProvider,
 } from "./hooks";
 export {
+  chatCompletionRequestSchema,
+  chatCompletionResponseSchema,
+  llmChatMessageSchema,
   modelCreateSchema,
   modelUpdateSchema,
   providerCreateSchema,

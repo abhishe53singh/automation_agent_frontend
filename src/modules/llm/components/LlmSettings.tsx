@@ -17,8 +17,8 @@ export function LlmSettings() {
           <Badge variant="info">Registry</Badge>
         </div>
         <p className="text-sm text-muted-foreground">
-          Register the LLM vendors and models chats can use. API keys stay on the server: a provider
-          only stores the name of the environment variable that holds its key.
+          Register the LLM vendors and models chats can use. API keys can be stored securely in the
+          database — they are write-only: the registry only ever reports whether a key exists.
         </p>
       </div>
 

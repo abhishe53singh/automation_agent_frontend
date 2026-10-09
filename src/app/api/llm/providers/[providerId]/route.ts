@@ -13,7 +13,13 @@ import { callUpstream } from "@/server/upstream";
  * chat history" instead of "server error".
  */
 
-const OPTIONAL_FIELDS = ["display_name", "base_url", "api_key_env", "is_active"] as const;
+const OPTIONAL_FIELDS = [
+  "display_name",
+  "base_url",
+  "api_key",
+  "api_key_env",
+  "is_active",
+] as const;
 
 export async function GET(
   _request: Request,
