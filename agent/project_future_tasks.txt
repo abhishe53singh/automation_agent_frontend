@@ -1,13 +1,11 @@
-# project_future_tasks.txt — backlog (re-audited 2026-10-04)
+# project_future_tasks.txt — backlog (re-audited 2026-10-04; updated 2026-10-10)
 Status words: [DONE] [PARTIAL] [BLOCKED] [TODO] (agent_process.txt §6).
 Detail for each phase is in phase_*.txt. Archive of the 2026-10-01 list: archive/.
 
 RECOMMENDED ORDER
-  1. Phase 4b (chat remediation) — K1-K3 are P0. Needs backend dev-echo adapter (item 88).
-  2. Phase 3b (project workspace + UI kit) — 4b depends on items 70-71 (templates, primitives).
-     Practical order: 70-71 -> 67 -> 73-76 -> 77-85 -> 86-87.
-  3. Phase 5 Knowledge, using the same templates.
-  4. Phase 7 hardening; Phase 6 only when backend phases land.
+  1. Phase 5 Knowledge slices 2-5 (documents -> KBs -> search -> citations).
+  2. Phase 4b leftovers: 81 (scroll/grid), 86 (tooling/e2e). K1-K3 are P0, need backend dev-echo adapter (item 88).
+  3. Phase 7 hardening; Phase 6 only when backend phases land.
 
 PHASE 1 Foundation (items 1-9) ............................................ [DONE]
 PHASE 2 Platform: BFF + auth (items 10-19) ................................ [DONE]
@@ -33,6 +31,8 @@ PHASE 4 Chat (original items 29-38)
   34. Submit turn + SSE ................................................... [DONE] 77, 78, 82
   35. Session sidebar actions ............................................. [DONE] 80, 84
   36. Markdown + highlight + copy ........................................ [DONE]
+      + Rich text (2026-10-10): GFM tables, CSV preview/download, LaTeX math,
+        code toolbar w/ download, answer Download (.md) — modular, no new deps [DONE]
   37. Fixture mode ........................................................ [DONE] (state dev only) K13
   38. verify_chat ........................................................ [PARTIAL] 87
 
@@ -59,8 +59,17 @@ PHASE 4b Chat remediation (phase_4b_chat_remediation.txt)
       (tracked in backend_requests/) ....................................... [BLOCKED]
 
 PHASE 5 Knowledge (phase_5.txt; screens in screen_specs.txt S7)
-  39-48 (BFF, module, files UI, ingestion progress, documents, KBs, KB docs,
-  search, citations, verify_knowledge) ..................................... [TODO]
+  39. BFF files + ingestion-jobs routes (11 ops: 43-53) ...................... [DONE]
+  40. knowledge module: files/jobs api + keys + hooks ........................ [DONE]
+  41. Files UI: upload zone, list, download, rename, delete, ingest ......... [DONE]
+  42. Ingestion progress: job poll + badges .................................. [DONE]
+  43. Documents UI (54-62): list + status filter, detail + chunk viewer,
+      create-from-text, reindex ............................................. [TODO] <- next slice
+  44. Knowledge bases (63-66): create, list, detail, settings ............... [TODO]
+  45. KB documents (67-71): attach PUT, enable/disable, detach .............. [TODO]
+  46. Search + retrievals (72-75): query, ranked results, history ........... [TODO]
+  47. Citations (76-79) + badges on chat response cards ..................... [TODO]
+  48. scripts/verify_knowledge full flow (upload->ingest->KB->search->cite) . [PARTIAL] files-only script done
 
 PHASE 6 Future domains (gated) items 49-56 ................................ [BLOCKED]
 

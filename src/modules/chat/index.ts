@@ -58,10 +58,20 @@ export {
   type StreamState,
   type UseTurnStreamResult,
 } from "./use-turn-stream";
-export { parseBlocks, parseInline, safeHref, type Block, type InlineToken } from "./markdown";
+export { parseBlocks, parseDelimitedTable, parseInline, safeHref, looksLikeCsv, type Block, type InlineToken } from "./markdown";
 export { Composer, type ComposerProps } from "./components/Composer";
 export { Conversation, type ConversationProps } from "./components/Conversation";
 export { CopyButton, Markdown, highlightCode, type MarkdownProps } from "./components/Markdown";
+export { MathView } from "./components/MathView";
+export {
+  BlockToolbar,
+  RichTable,
+  ToolButton,
+  downloadTextFile,
+  toCsv,
+  useCopyText,
+  type TableAlign,
+} from "./components/rich-blocks";
 export { ModelSetEditor } from "./components/ModelSetEditor";
 export { NewChatButton } from "./components/NewChatButton";
 export { ResponseCard, type ResponseCardProps } from "./components/ResponseCard";

@@ -69,6 +69,7 @@ export function ProjectWorkspaceLayout({
   const tabs = [
     { href: `/projects/${projectId}` as Route, label: "Overview" },
     { href: `/projects/${projectId}/chat` as Route, label: "Chats" },
+    { href: `/projects/${projectId}/knowledge` as Route, label: "Knowledge" },
     { href: `/projects/${projectId}/members` as Route, label: "Members" },
     {
       href: `/projects/${projectId}/settings` as Route,

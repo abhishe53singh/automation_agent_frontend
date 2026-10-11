@@ -2,7 +2,9 @@
 
 import * as React from "react";
 
-import { parseBlocks, parseInline, type Block } from "../markdown";
+import { parseBlocks, parseDelimitedTable, parseInline, type Block } from "../markdown";
+import { MathView } from "./MathView";
+import { BlockToolbar, RichTable, downloadTextFile, toCsv, useCopyText } from "./rich-blocks";
 
 /**
  * Renders model output as Markdown (item 36).
@@ -37,6 +39,17 @@ function BlockView({ block }: { block: Block }) {
   switch (block.kind) {
     case "code":
       return <CodeBlock language={block.language} code={block.code} />;
+    case "table":
+      return (
+        <RichTable
+          header={block.header}
+          rows={block.rows}
+          align={block.align}
+          caption={`Table · ${block.rows.length} row${block.rows.length === 1 ? "" : "s"}`}
+        />
+      );
+    case "math":
+      return <MathView latex={block.latex} display />;
     case "heading": {
       const Tag = `h${Math.min(block.level + 2, 6)}` as "h3" | "h4" | "h5" | "h6";
       return (
@@ -48,7 +61,7 @@ function BlockView({ block }: { block: Block }) {
     case "list": {
       const Tag = block.ordered ? "ol" : "ul";
       return (
-        <Tag className="list-disc space-y-1 pl-5 text-sm text-foreground marker:text-muted-foreground">
+        <Tag className={block.ordered ? "list-decimal space-y-1 pl-5 text-sm text-foreground marker:text-muted-foreground" : "list-disc space-y-1 pl-5 text-sm text-foreground marker:text-muted-foreground"}>
           {block.items.map((item, index) => (
             <li key={index}>
               <Inline text={item} />
@@ -103,6 +116,8 @@ function Inline({ text }: { text: string }) {
                 {token.text}
               </em>
             );
+          case "math":
+            return <MathView key={index} latex={token.latex} />;
           case "link":
             return (
               <a
@@ -125,14 +140,54 @@ function Inline({ text }: { text: string }) {
 }
 
 function CodeBlock({ language, code }: { language: string | null; code: string }) {
+  const lang = (language ?? "").toLowerCase();
+  const isCsvHint = ["csv", "tsv", "psv", "ssv", "dsv"].includes(lang);
+  const table = React.useMemo(
+    () => (isCsvHint || lang === "text" || lang === "" ? parseDelimitedTable(code) : null),
+    [code, isCsvHint, lang],
+  );
+  const [view, setView] = React.useState<"preview" | "raw">("preview");
+
+  // CSV-ish fenced block: tabular preview + copy/download as .csv.
+  if (table) {
+    const csv = toCsv(table.header, table.rows);
+    return (
+      <div className="space-y-2">
+        <div className="overflow-hidden rounded-md border border-border bg-muted/40">
+          <BlockToolbar
+            title={`${lang === "" ? "csv" : lang} · ${table.rows.length} rows`}
+            copyText={code}
+            download={{ filename: "data.csv", content: code.endsWith("\n") ? code : `${code}\n`, mime: "text/csv;charset=utf-8", label: "CSV" }}
+            extra={
+              <button
+                type="button"
+                onClick={() => setView((v) => (v === "preview" ? "raw" : "preview"))}
+                className="rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              >
+                {view === "preview" ? "Raw" : "Table"}
+              </button>
+            }
+          />
+          {view === "raw" ? (
+            <pre className="overflow-x-auto p-3">
+              <code className="font-mono text-xs">{code}</code>
+            </pre>
+          ) : null}
+        </div>
+        {view === "preview" ? (
+          <RichTable header={table.header} rows={table.rows} caption={`CSV preview · ${table.rows.length} rows`} copyText={csv} download={{ filename: "data.csv", content: `${csv}\n`, mime: "text/csv;charset=utf-8", label: "CSV" }} />
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div className="overflow-hidden rounded-md border border-border bg-muted/40">
-      <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
-        <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
-          {language ?? "code"}
-        </span>
-        <CopyButton text={code} />
-      </div>
+      <BlockToolbar
+        title={language ?? "code"}
+        copyText={code}
+        download={{ filename: `snippet.${lang || "txt"}`, content: code, label: "File" }}
+      />
       <pre className="overflow-x-auto p-3">
         <code className="font-mono text-xs">{highlightCode(code, language)}</code>
       </pre>
@@ -234,17 +289,7 @@ function escapeRegExp(value: string): string {
 
 /** Copy-to-clipboard control used by code blocks and response cards. */
 export function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
-  const [copied, setCopied] = React.useState(false);
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // Clipboard access can be denied; the failure is non-fatal here.
-    }
-  };
+  const { copied, copy } = useCopyText(text);
 
   return (
     <button
@@ -256,3 +301,5 @@ export function CopyButton({ text, label = "Copy" }: { text: string; label?: str
     </button>
   );
 }
+
+export { downloadTextFile };

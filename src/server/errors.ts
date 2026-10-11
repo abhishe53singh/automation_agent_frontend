@@ -13,6 +13,7 @@ export type ServerErrorCode =
   | "unauthorized"
   | "forbidden"
   | "not_found"
+  | "gone"
   | "validation"
   | "conflict"
   | "rate_limited"
@@ -26,6 +27,7 @@ const STATUS_TO_CODE: Record<number, ServerErrorCode> = {
   403: "forbidden",
   404: "not_found",
   409: "conflict",
+  410: "gone",
   422: "validation",
   429: "rate_limited",
 };
@@ -38,6 +40,7 @@ const DEFAULT_MESSAGE: Record<ServerErrorCode, string> = {
   unauthorized: "Authentication required.",
   forbidden: "You do not have permission to do that.",
   not_found: "Not found.",
+  gone: "This file is no longer available.",
   validation: "The request payload is invalid.",
   conflict: "That value is already taken.",
   rate_limited: "Too many requests.",

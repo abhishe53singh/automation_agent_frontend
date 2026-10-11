@@ -13,6 +13,7 @@ export const ERROR_CODES = [
   "unauthorized",
   "forbidden",
   "not_found",
+  "gone",
   "validation",
   "conflict",
   "rate_limited",
@@ -36,6 +37,8 @@ export function codeForStatus(status: number): ApiErrorCode {
       return "forbidden";
     case 404:
       return "not_found";
+    case 410:
+      return "gone";
     case 409:
       return "conflict";
     case 422:
@@ -57,6 +60,8 @@ export function defaultMessageForCode(code: ApiErrorCode): string {
       return "You do not have permission to do that.";
     case "not_found":
       return "Not found.";
+    case "gone":
+      return "This file is no longer available.";
     case "validation":
       return "Please check the highlighted fields.";
     case "conflict":

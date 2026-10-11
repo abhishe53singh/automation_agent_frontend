@@ -45,3 +45,19 @@ Implemented items:
 - Item 83: Honest pending response card explaining provider adapter dependency
 - Item 84: Sidebar search filter + date groupings (Today, Yesterday, Previous 7 Days, Older)
 - Item 85: Query cache patching for branch children, ModelSetEditor fingerprint key, cached env, shared formatDate, cleaned copy
+
+--- SESSION 2026-10-10 (a): Chat rich-text response cards ---
+Status: [DONE] code complete; D1-D5 need a live run (shell capture unavailable this session).
+- Item 36 extension: GFM tables (aligned, overflow-x scroll in-card), CSV fence
+  auto-preview + table/raw toggle + CSV copy/download, LaTeX math (display + inline,
+  dependency-free MathView), BlockToolbar (copy + download) on every code block,
+  ResponseCard Download (.md). Modular: markdown.ts, Markdown.tsx, rich-blocks.tsx
+  (new), MathView.tsx (new). Zero new deps, no dangerouslySetInnerHTML.
+
+--- SESSION 2026-10-10 (b): Phase 5 slice 1 — Knowledge files ---
+Status: [DONE] code complete; D1-D5 need a live run (see task draft in prior message).
+- Items 39-42: knowledge module (schemas/api/hooks/index), BFF files + ingestion-jobs
+  routes, FileUploadZone + FilesPanel + FileRow + IngestMenuItems, project Knowledge
+  tab + global /knowledge page, upstream-binary.ts, `gone` (410) code, formatFileSize
+  in shared/lib/format.ts, tests/unit/knowledge-files.test.ts, scripts/verify_knowledge.mjs.
+- Matrix rows 43-53 -> BUILT (45 BUILT / 26 TODO).

@@ -4,6 +4,7 @@ import * as React from "react";
 import { AlertCircle, CheckCircle2, Clock } from "lucide-react";
 
 import { Markdown, CopyButton } from "./Markdown";
+import { downloadTextFile } from "./rich-blocks";
 import type { LlmResponse, LlmResponseStatus } from "../schemas";
 import { Badge } from "@/shared/ui";
 
@@ -45,7 +46,7 @@ export function ResponseCard({ response, modelName, isStreaming }: ResponseCardP
 
   return (
     <article
-      className="rounded-lg border border-border bg-card p-4 shadow-sm"
+      className="min-w-0 overflow-hidden rounded-lg border border-border bg-card p-4 shadow-sm"
       aria-label={`Answer from ${modelName}`}
     >
       <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -60,7 +61,19 @@ export function ResponseCard({ response, modelName, isStreaming }: ResponseCardP
           ) : null}
         </div>
 
-        {body ? <CopyButton text={body} label="Copy answer" /> : null}
+        {body ? (
+          <div className="flex shrink-0 items-center gap-1">
+            <CopyButton text={body} label="Copy answer" />
+            <button
+              type="button"
+              onClick={() => downloadTextFile(`${modelName || "answer"}.md`, body, "text/markdown;charset=utf-8")}
+              className="rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              title="Download answer as markdown"
+            >
+              Download
+            </button>
+          </div>
+        ) : null}
       </header>
 
       {response.status === "failed" ? (

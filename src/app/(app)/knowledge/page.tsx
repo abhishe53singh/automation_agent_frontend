@@ -1,15 +1,22 @@
 import type { Metadata } from "next";
 
-import { EmptyState } from "@/shared/ui/EmptyState";
+import type { Metadata } from "next";
+
+import { FilesPanel } from "@/modules/knowledge";
+import { Breadcrumbs, PageHeader } from "@/shared/ui";
 
 export const metadata: Metadata = { title: "Knowledge" };
 
-/** Placeholder — knowledge bases, documents and search land in phase 5. */
+/** Cross-project Files view (no project scope; scoped view is per-project). */
 export default function KnowledgePage() {
   return (
-    <EmptyState
-      title="No knowledge bases yet"
-      description="Document ingestion, chunking, embeddings and search arrive in phase 5."
-    />
+    <div className="mx-auto w-full max-w-5xl space-y-6">
+      <PageHeader
+        title="Knowledge"
+        description="Files across all projects. Upload here, then prepare them for search."
+        breadcrumbs={<Breadcrumbs items={[{ label: "Knowledge" }]} />}
+      />
+      <FilesPanel />
+    </div>
   );
 }

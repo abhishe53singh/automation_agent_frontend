@@ -53,17 +53,17 @@ without re-deriving them.
 40 | GET /chat/sessions/{id}/responses/{rid} | /api/chat/sessions/[sessionId]/responses/[responseId] | chat | (poll fallback) | BUILT | use for per-response refresh
 41 | PATCH /chat/sessions/{id}/responses/{rid} | same | chat | (adapter write path; not for UI) | BUILT | dev tools only
 42 | GET /chat/sessions/{id}/turns/{tid}/stream | /api/chat/sessions/[sessionId]/turns/[turnId]/stream | chat | use-turn-stream | PARTIAL | no resume after reload; stale state on 2nd turn (items 77-78)
-43 | POST /files | /api/files | knowledge | Files tab upload | TODO | multipart passthrough
-44 | GET /files/supported-types | /api/files/supported-types | knowledge | Files tab hint | TODO | public
-45 | GET /files | /api/files | knowledge | Files tab list | TODO
-46 | GET /files/{id} | /api/files/[fileId] | knowledge | file detail drawer | TODO
-47 | PATCH /files/{id} | same | knowledge | rename/move to project | TODO
-48 | DELETE /files/{id} | same | knowledge | Files tab | TODO
-49 | GET /files/{id}/download | /api/files/[fileId]/download | knowledge | Download action | TODO | stream; 410 gone
-50 | POST /files/{id}/ingest | /api/files/[fileId]/ingest | knowledge | Ingest action | TODO | run_inline default true
-51 | POST /ingestion-jobs | /api/ingestion-jobs | knowledge | queue ingest | TODO
-52 | GET /ingestion-jobs | /api/ingestion-jobs | knowledge | jobs list/progress | TODO | poll
-53 | GET /ingestion-jobs/{id} | /api/ingestion-jobs/[jobId] | knowledge | job detail | TODO | poll
+43 | POST /files | /api/files | knowledge | Files tab upload | BUILT | multipart passthrough
+44 | GET /files/supported-types | /api/files/supported-types | knowledge | Files tab hint | BUILT | public
+45 | GET /files | /api/files | knowledge | Files tab list | BUILT
+46 | GET /files/{id} | /api/files/[fileId] | knowledge | file detail drawer | BUILT
+47 | PATCH /files/{id} | same | knowledge | rename/move to project | BUILT
+48 | DELETE /files/{id} | same | knowledge | Files tab | BUILT
+49 | GET /files/{id}/download | /api/files/[fileId]/download | knowledge | Download action | BUILT | stream; 410 gone
+50 | POST /files/{id}/ingest | /api/files/[fileId]/ingest | knowledge | Ingest action | BUILT | run_inline default true
+51 | POST /ingestion-jobs | /api/ingestion-jobs | knowledge | queue ingest | BUILT
+52 | GET /ingestion-jobs | /api/ingestion-jobs | knowledge | jobs list/progress | BUILT | poll
+53 | GET /ingestion-jobs/{id} | /api/ingestion-jobs/[jobId] | knowledge | job detail | BUILT | poll
 54 | POST /documents | /api/documents | knowledge | Create from text | TODO
 55 | GET /documents | /api/documents | knowledge | Documents tab | TODO
 56 | GET /documents/{id} | /api/documents/[documentId] | knowledge | document detail | TODO
@@ -91,6 +91,6 @@ without re-deriving them.
 78 | GET /citations/{id} | /api/citations/[citationId] | knowledge | citation detail | TODO
 79 | DELETE /citations/{id} | same | knowledge | citation remove | TODO
 
-TOTALS: BLOCKED 1, BUILT 34, PARTIAL 7, TODO 37 (of 79 entries)
+TOTALS: BLOCKED 1, BUILT 45, PARTIAL 7, TODO 26 (of 79 entries)
 
 NOT IN THE BACKEND YET (do not build UI): integrations/OAuth, MCP, agents, workflows, usage/audit, provider adapters (chat answers) — see phase_6.txt and backend_requests/.
