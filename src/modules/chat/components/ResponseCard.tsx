@@ -6,6 +6,7 @@ import { AlertCircle, CheckCircle2, Clock } from "lucide-react";
 import { Markdown, CopyButton } from "./Markdown";
 import { downloadTextFile } from "./rich-blocks";
 import type { LlmResponse, LlmResponseStatus } from "../schemas";
+import { CitationBadges } from "@/modules/knowledge";
 import { Badge } from "@/shared/ui";
 
 /**
@@ -96,8 +97,11 @@ export function ResponseCard({ response, modelName, isStreaming }: ResponseCardP
         <p className="text-sm italic text-muted-foreground">The model returned an empty answer.</p>
       )}
 
+      <CitationBadges responseId={response.id} />
+
       <ResponseMetrics response={response} />
     </article>
+
   );
 }
 

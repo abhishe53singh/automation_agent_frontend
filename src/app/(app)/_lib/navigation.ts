@@ -1,9 +1,19 @@
-import { BookOpen, FolderKanban, LayoutDashboard, MessagesSquare, Settings } from "lucide-react";
+import {
+  BookOpen,
+  Bot,
+  FolderKanban,
+  GitFork,
+  LayoutDashboard,
+  MessagesSquare,
+  Plug,
+  Settings,
+} from "lucide-react";
 import type { Route } from "next";
 
 export interface NavItem {
-  href: Route;
+  href: Route | string;
   label: string;
+
   /** lucide-react icon component. */
   icon: React.ComponentType<{ className?: string }>;
   /** The phase this route's real feature lands in. `null` = already shipped. */
@@ -16,8 +26,12 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/projects", label: "Projects", icon: FolderKanban, phase: null },
   { href: "/chat", label: "Chat", icon: MessagesSquare, phase: null },
   { href: "/knowledge", label: "Knowledge", icon: BookOpen, phase: null },
+  { href: "/integrations", label: "Integrations", icon: Plug, phase: "P6" },
+  { href: "/agents", label: "Agents", icon: Bot, phase: "P6" },
+  { href: "/workflows", label: "Workflows", icon: GitFork, phase: "P6" },
   { href: "/settings", label: "Settings", icon: Settings, phase: null },
 ] as const;
+
 
 /** Brand mark + wordmark shown at the top of the sidebar. */
 export const APP_NAME = "Automation Agent";

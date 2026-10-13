@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import type { Route } from "next";
 import { usePathname } from "next/navigation";
+
 import * as React from "react";
 import { Bot } from "lucide-react";
 
@@ -37,11 +39,13 @@ export function Sidebar({ onNavigate, className }: SidebarProps) {
           const active = pathname === href || pathname.startsWith(`${href}/`);
           return (
             <li key={href}>
+
               <Link
-                href={href}
+                href={href as Route}
                 onClick={onNavigate}
                 aria-current={active ? "page" : undefined}
                 className={cn(
+
                   "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
                   active
                     ? "bg-accent font-medium text-accent-foreground"

@@ -11,22 +11,25 @@ Updated: 2026-10-10 (Phase 5 files slice + chat rich-text session). Detailed pha
 | 3b Project workspace + UI kit | 67-72 | DONE | 10 primitives, 4 templates, /projects/[id]/ tabs & subpages |
 | 4 Chat (original) | 29-38 | PARTIAL | BFF+UI exist; rich-text session done (tables/math/CSV/download); flow gaps in K1-K10 |
 | 4b Chat remediation | 73-88 | PARTIAL | Items 73, 74, 75, 76, 77, 78, 79, 80, 82, 83, 84, 85 done; 81, 86 open; K1 backend blocked |
-| 5 Knowledge | 39-48 | PARTIAL | [DONE] files slice (43-53): module + BFF + tabs + unit test + verify script. [TODO] docs, KBs, search, cites (43-48 detail below) |
-| 6 Future domains | 49-56 | BLOCKED | backend phases 4-7 TODO |
+| 5 Knowledge | 39-48 | DONE | Full knowledge slice: files, docs, KBs, search, citations (BFF + UI + tests pass) |
+| 6 Future domains | 49-56 | PARTIAL | Placeholder modules & BFF routes built (integrations, mcp, agents, workflows, timeline); gated on backend landing |
 | 7 Production | 57-66 | TODO | Playwright pulled forward into 4b (item 86) |
 
-## Recent work (2026-10-10)
-- [DONE] Chat rich text (item 36 extension): GFM tables + CSV preview/download,
-  LaTeX math (block + inline), code toolbar w/ download, card Download (.md).
-  Files: markdown.ts, Markdown.tsx, rich-blocks.tsx, MathView.tsx, ResponseCard.
-- [DONE] Knowledge files slice (items 39-42): knowledge module (schemas/api/hooks),
-  BFF files + ingestion-jobs routes, upload zone + FilesPanel, project Knowledge
-  tab + global /knowledge page, unit test, verify_knowledge script, `gone` (410) code.
-- [TODO next] Phase 5 slice 2: documents (54-62) incl. chunk viewer + reindex.
-- [TODO next] Phase 5 slice 3: knowledge bases + KB documents (63-71).
-- [TODO next] Phase 5 slice 4: search + retrievals (72-75).
-- [TODO next] Phase 5 slice 5: citations + chat badges (76-79) -> full verify_knowledge.
-- [TODO] Phase 4b leftovers: item 81 (scroll/grid), item 86 (tooling/e2e).
+## Recent work (2026-10-13)
+- [DONE] Phase 5 Knowledge complete (items 39-48):
+  - Slice 2: Documents BFF + DocumentsPanel + chunk viewer dialog + inline-text creation + reindex.
+  - Slice 3: Knowledge Bases BFF + KnowledgeBasesPanel + document attachment/replace/toggle + fixed embedding configs.
+  - Slice 4: Search & Retrievals BFF + SearchPanel + ranked results + persisted retrieval ID.
+  - Slice 5: Citations BFF + CitationBadges on ResponseCards + citation listing & delete.
+  - Smoke script verify_knowledge updated with full upload -> ingest -> document -> KB -> search -> citation cycle.
+- [DONE] Phase 6 Future domains placeholders (items 49-56):
+  - Integrations module & BFF routes: Google OAuth connect/callback + provider connections.
+  - MCP module & BFF routes: Server registry, tools, permission updates.
+  - Agents module & BFF routes: Agent definition, tools, runs list/start.
+  - Workflows module & BFF routes: Workflow definitions, step runs.
+  - Shared ExecutionTimeline primitive in `@/shared/ui` with status & event steps.
+  - Shell navigation updated with Integrations, Agents, and Workflows (P6 badge).
+
 
 ## KNOWN ISSUES (read before feature work; close with evidence)
 

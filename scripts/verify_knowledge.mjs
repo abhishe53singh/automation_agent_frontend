@@ -148,9 +148,62 @@ check("delete returns 204", r.status === 204, `got ${r.status}: ${r.text}`);
 r = await call("GET", `/api/files/${fileId}`);
 check("deleted file is 404", r.status === 404, `got ${r.status}: ${r.text}`);
 
+section("documents (inline text)");
+r = await call("POST", "/api/documents", {
+  title: `Smoke Document ${tag}`,
+  text: "Automation Agent is a powerful autonomous coding framework with integrated RAG and execution engine.",
+});
+check("document create returns 201", r.status === 201, `got ${r.status}: ${r.text}`);
+const docId = r.json?.id;
+check("document has id", Boolean(docId), r.text);
+
+r = await call("GET", "/api/documents");
+check("document list returns 200", r.status === 200 && Array.isArray(r.json) && r.json.some((d) => d.id === docId), `got ${r.status}`);
+
+section("knowledge base (create + attach)");
+r = await call("POST", "/api/knowledge-bases", {
+  name: `kb-${tag}`,
+  embedding_provider: "local",
+  embedding_model: "BAAI/bge-small-en-v1.5",
+  embedding_dimension: 384,
+});
+check("KB create returns 201", r.status === 201, `got ${r.status}: ${r.text}`);
+const kbId = r.json?.id;
+
+if (kbId && docId) {
+  r = await call("PUT", `/api/knowledge-bases/${kbId}/documents`, {
+    document_ids: [docId],
+  });
+  check("KB attach documents returns 200", r.status === 200, `got ${r.status}: ${r.text}`);
+
+  section("search knowledge base");
+  r = await call("POST", `/api/knowledge-bases/${kbId}/search`, {
+    query: "Automation Agent framework",
+  });
+  check("KB search returns 200", r.status === 200, `got ${r.status}: ${r.text}`);
+  const retrievalId = r.json?.retrieval_id;
+
+  section("citations");
+  if (retrievalId) {
+    r = await call("GET", `/api/retrievals/${retrievalId}/results`);
+    check("retrieval results returns 200", r.status === 200, `got ${r.status}: ${r.text}`);
+  }
+}
+
+section("cleanup KB & document");
+if (kbId) {
+  r = await call("DELETE", `/api/knowledge-bases/${kbId}`);
+  check("KB delete returns 204", r.status === 204, `got ${r.status}`);
+}
+if (docId) {
+  r = await call("DELETE", `/api/documents/${docId}`);
+  check("document delete returns 204", r.status === 204, `got ${r.status}`);
+}
+
 console.log(`\nSUMMARY total=${passed + failures.length} failed=${failures.length}`);
 if (failures.length > 0) {
   console.log("failures:");
   for (const f of failures) console.log(` - ${f}`);
   process.exit(1);
 }
+

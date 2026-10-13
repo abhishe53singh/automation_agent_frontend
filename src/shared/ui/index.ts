@@ -3,7 +3,9 @@ export { Badge, badgeVariants, type BadgeProps } from "./Badge";
 export { Button, buttonVariants, type ButtonProps } from "./Button";
 export { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./Card";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
+export { ExecutionTimeline, type TimelineEvent } from "./ExecutionTimeline";
 export { Input, type InputProps } from "./Input";
+
 export { Spinner, SpinnerBlock, type SpinnerProps } from "./Spinner";
 export { Skeleton, SkeletonText, type SkeletonProps } from "./Skeleton";
 export { Dialog, type DialogProps } from "./Dialog";
