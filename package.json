@@ -19,7 +19,8 @@
     "verify:bff": "node scripts/verify_bff_gateway.mjs",
     "verify:projects": "node scripts/verify_projects.mjs",
     "verify:chat": "node scripts/verify_chat.mjs",
-    "verify:knowledge": "node scripts/verify_knowledge.mjs"
+    "verify:knowledge": "node scripts/verify_knowledge.mjs",
+    "verify:phase6": "node scripts/verify_phase_6.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

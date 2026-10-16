@@ -6,10 +6,24 @@ import {
   mcpKeys,
   listMcpServers,
   createMcpServer,
+  updateMcpServer,
   deleteMcpServer,
   listMcpTools,
+  createMcpTool,
   updateMcpTool,
+  deleteMcpTool,
+  listApprovals,
+  createApproval,
+  decideApproval,
 } from "./api";
+import type {
+  McpServerCreate,
+  McpServerUpdate,
+  McpToolCreate,
+  McpToolUpdate,
+  ToolApprovalCreate,
+  ToolApprovalDecide,
+} from "./schemas";
 import { isApiError } from "@/shared/lib/api";
 
 function messageFor(error: unknown, fallback: string): string {
@@ -36,13 +50,26 @@ export function useMcpTools(serverId: string | null | undefined) {
 export function useCreateMcpServer() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { name: string; command: string; args?: string[] }) =>
-      createMcpServer(input),
+    mutationFn: (input: McpServerCreate) => createMcpServer(input),
     onSuccess: (server) => {
       void queryClient.invalidateQueries({ queryKey: mcpKeys.servers() });
       toast.success(`Registered MCP server ${server.name}.`);
     },
     onError: (err) => toast.error(messageFor(err, "Failed to register MCP server.")),
+  });
+}
+
+export function useUpdateMcpServer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: McpServerUpdate }) =>
+      updateMcpServer(id, patch),
+    onSuccess: (server) => {
+      void queryClient.invalidateQueries({ queryKey: mcpKeys.servers() });
+      void queryClient.invalidateQueries({ queryKey: mcpKeys.server(server.id) });
+      toast.success(`Updated MCP server ${server.name}.`);
+    },
+    onError: (err) => toast.error(messageFor(err, "Failed to update MCP server.")),
   });
 }
 
@@ -58,21 +85,78 @@ export function useDeleteMcpServer() {
   });
 }
 
-export function useUpdateMcpTool(serverId: string) {
+export function useCreateMcpTool(serverId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      toolId,
-      permission,
-    }: {
-      toolId: string;
-      permission: "allowed" | "requires_confirmation" | "blocked";
-    }) => updateMcpTool(serverId, toolId, { permission }),
-    onSuccess: () => {
+    mutationFn: (input: McpToolCreate) => createMcpTool(serverId, input),
+    onSuccess: (tool) => {
       void queryClient.invalidateQueries({ queryKey: mcpKeys.tools(serverId) });
-      toast.success("Tool permission updated.");
+      toast.success(`Registered tool ${tool.name}.`);
     },
-    onError: (err) => toast.error(messageFor(err, "Failed to update permission.")),
+    onError: (err) => toast.error(messageFor(err, "Failed to add tool.")),
   });
 }
 
+export function useUpdateMcpTool(serverId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ toolId, patch }: { toolId: string; patch: McpToolUpdate }) =>
+      updateMcpTool(serverId, toolId, patch),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: mcpKeys.tools(serverId) });
+      toast.success("Tool updated.");
+    },
+    onError: (err) => toast.error(messageFor(err, "Failed to update tool.")),
+  });
+}
+
+export function useDeleteMcpTool(serverId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (toolId: string) => deleteMcpTool(serverId, toolId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: mcpKeys.tools(serverId) });
+      toast.success("Tool removed.");
+    },
+    onError: (err) => toast.error(messageFor(err, "Failed to remove tool.")),
+  });
+}
+
+// --- Approvals ---
+export function useApprovals() {
+  return useQuery({
+    queryKey: mcpKeys.approvals(),
+    queryFn: ({ signal }) => listApprovals(signal),
+    refetchInterval: 10_000,
+  });
+}
+
+export function useCreateApproval() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ToolApprovalCreate) => createApproval(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: mcpKeys.approvals() });
+      toast.success("Tool execution request queued for approval.");
+    },
+    onError: (err) => toast.error(messageFor(err, "Failed to create approval request.")),
+  });
+}
+
+export function useDecideApproval() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      approvalId,
+      decision,
+    }: {
+      approvalId: string;
+      decision: ToolApprovalDecide;
+    }) => decideApproval(approvalId, decision),
+    onSuccess: (approval) => {
+      void queryClient.invalidateQueries({ queryKey: mcpKeys.approvals() });
+      toast.success(`Approval marked as ${approval.status}.`);
+    },
+    onError: (err) => toast.error(messageFor(err, "Failed to record approval decision.")),
+  });
+}

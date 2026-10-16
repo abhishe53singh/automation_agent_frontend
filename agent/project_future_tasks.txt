@@ -64,14 +64,22 @@ PHASE 5 Knowledge (phase_5.txt; screens in screen_specs.txt S7)
   41. Files UI: upload zone, list, download, rename, delete, ingest ......... [DONE]
   42. Ingestion progress: job poll + badges .................................. [DONE]
   43. Documents UI (54-62): list + status filter, detail + chunk viewer,
-      create-from-text, reindex ............................................. [TODO] <- next slice
-  44. Knowledge bases (63-66): create, list, detail, settings ............... [TODO]
-  45. KB documents (67-71): attach PUT, enable/disable, detach .............. [TODO]
-  46. Search + retrievals (72-75): query, ranked results, history ........... [TODO]
-  47. Citations (76-79) + badges on chat response cards ..................... [TODO]
-  48. scripts/verify_knowledge full flow (upload->ingest->KB->search->cite) . [PARTIAL] files-only script done
+      create-from-text, reindex ............................................. [DONE]
+  44. Knowledge bases (63-66): create, list, detail, settings ............... [DONE]
+  45. KB documents (67-71): attach PUT, enable/disable, detach .............. [DONE]
+  46. Search + retrievals (72-75): query, ranked results, history ........... [DONE]
+  47. Citations (76-79) + badges on chat response cards ..................... [DONE]
+  48. scripts/verify_knowledge full flow (upload->ingest->KB->search->cite) . [DONE]
 
-PHASE 6 Future domains (gated) items 49-56 ................................ [BLOCKED]
+PHASE 6 Integrations, MCP, Agents, Workflows (phase_6.txt) .................. [DONE]
+  49. Google Workspace integration (OAuth connect, callback, disconnect) .... [DONE]
+  50. Provider connections manager (status, token expiry, scopes) ........... [DONE]
+  51. MCP Server registry & tool discovery .................................. [DONE]
+  52. MCP Tool permissions (allowed, requires_confirmation, blocked) ........ [DONE]
+  53. Tool approval confirmation workflow (decide approve/reject) ........... [DONE]
+  54. Agents definition & attached MCP tools manager ........................ [DONE]
+  55. Agent runs execution & interactive ExecutionTimeline .................. [DONE]
+  56. Workflows definition, steps, schedules, triggers, runs (retry/cancel) . [DONE]
 
 PHASE 7 Production (items 57-66) .......................................... [TODO]
    60 Playwright e2e: first slice pulled forward as item 86.

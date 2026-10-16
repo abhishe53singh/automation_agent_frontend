@@ -12,23 +12,25 @@ Updated: 2026-10-10 (Phase 5 files slice + chat rich-text session). Detailed pha
 | 4 Chat (original) | 29-38 | PARTIAL | BFF+UI exist; rich-text session done (tables/math/CSV/download); flow gaps in K1-K10 |
 | 4b Chat remediation | 73-88 | PARTIAL | Items 73, 74, 75, 76, 77, 78, 79, 80, 82, 83, 84, 85 done; 81, 86 open; K1 backend blocked |
 | 5 Knowledge | 39-48 | DONE | Full knowledge slice: files, docs, KBs, search, citations (BFF + UI + tests pass) |
-| 6 Future domains | 49-56 | PARTIAL | Placeholder modules & BFF routes built (integrations, mcp, agents, workflows, timeline); gated on backend landing |
-| 7 Production | 57-66 | TODO | Playwright pulled forward into 4b (item 86) |
+| 6 Integrations, MCP & Agents | 49-56 | DONE | Full implementations: Google OAuth / integrations, MCP Registry & tool approvals, Agents & runs, Workflows (steps/schedules/triggers/runs/retry/cancel), Execution timeline |
+| 7 Production | 57-66 | TODO | Production hardening, rate-limit headers, audit logging |
 
-## Recent work (2026-10-13)
+## Recent work (2026-10-14)
 - [DONE] Phase 5 Knowledge complete (items 39-48):
   - Slice 2: Documents BFF + DocumentsPanel + chunk viewer dialog + inline-text creation + reindex.
   - Slice 3: Knowledge Bases BFF + KnowledgeBasesPanel + document attachment/replace/toggle + fixed embedding configs.
   - Slice 4: Search & Retrievals BFF + SearchPanel + ranked results + persisted retrieval ID.
   - Slice 5: Citations BFF + CitationBadges on ResponseCards + citation listing & delete.
   - Smoke script verify_knowledge updated with full upload -> ingest -> document -> KB -> search -> citation cycle.
-- [DONE] Phase 6 Future domains placeholders (items 49-56):
-  - Integrations module & BFF routes: Google OAuth connect/callback + provider connections.
-  - MCP module & BFF routes: Server registry, tools, permission updates.
-  - Agents module & BFF routes: Agent definition, tools, runs list/start.
-  - Workflows module & BFF routes: Workflow definitions, step runs.
-  - Shared ExecutionTimeline primitive in `@/shared/ui` with status & event steps.
-  - Shell navigation updated with Integrations, Agents, and Workflows (P6 badge).
+- [DONE] Phase 6 Integrations, MCP, Agents, Workflows & Execution Timeline complete (items 49-56):
+  - Upstream Gateway & Redirect handling: added manual redirect support to upstream proxy, supporting Google OAuth flow.
+  - Integrations module: Google Workspace connection management, connection status, token fingerprint, expiration, scopes, and disconnect dialog.
+  - MCP module: MCP Server registry, tool discovery, permissions editor (allowed, requires_confirmation, blocked), tool approval requests and decision review.
+  - Agents module: Agent configuration, attached tool management, agent run execution, step inspection with ExecutionTimeline.
+  - Workflows module: Workflow definitions, step configuration (agent, tool, condition, loop, wait, approval), cron schedule management, trigger rules, execution runs with retry and cancel controls.
+  - Execution timeline: shared interactive timeline component reflecting step state, durations, errors, and metadata.
+  - Navigation: Phase badges updated and active links integrated in shell navigation.
+  - End-to-end verification script: scripts/verify_phase_6.mjs added and npm run build verified passing with 0 errors.
 
 
 ## KNOWN ISSUES (read before feature work; close with evidence)

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Breadcrumbs, PageHeader, Card, CardContent, CardHeader, CardTitle, CardDescription, Button } from "@/shared/ui";
+import { Breadcrumbs, PageHeader } from "@/shared/ui";
+import { AgentsPanel } from "@/modules/agents";
 
 export const metadata: Metadata = { title: "Agents" };
 
@@ -12,26 +13,7 @@ export default function AgentsPage() {
         breadcrumbs={<Breadcrumbs items={[{ label: "Agents" }]} />}
       />
 
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Autonomous Agents</CardTitle>
-              <CardDescription>
-                Define persona, capabilities, and execution boundaries.
-              </CardDescription>
-            </div>
-            <Button disabled>Create Agent</Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded border border-dashed p-8 text-center text-sm text-muted-foreground">
-            No agents configured yet. Backend phase 5 (Agent definitions & runs) is staged.
-          </div>
-        </CardContent>
-      </Card>
+      <AgentsPanel />
     </div>
   );
 }
-

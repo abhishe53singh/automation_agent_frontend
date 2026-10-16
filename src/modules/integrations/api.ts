@@ -21,6 +21,12 @@ export function listConnections(signal?: AbortSignal): Promise<ProviderConnectio
   );
 }
 
+export function getConnection(id: string, signal?: AbortSignal): Promise<ProviderConnection> {
+  return apiJson(`/api/integrations/connections/${enc(id)}`, { signal }, (data) =>
+    parseWith(connectionSchema, data, `GET /api/integrations/connections/${id}`),
+  );
+}
+
 export function createConnection(
   input: ConnectionCreate,
   signal?: AbortSignal,
@@ -35,4 +41,3 @@ export function createConnection(
 export function deleteConnection(id: string, signal?: AbortSignal): Promise<void> {
   return apiVoid(`/api/integrations/connections/${enc(id)}`, { method: "DELETE", signal });
 }
-

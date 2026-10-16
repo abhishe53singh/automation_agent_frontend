@@ -26,9 +26,9 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/projects", label: "Projects", icon: FolderKanban, phase: null },
   { href: "/chat", label: "Chat", icon: MessagesSquare, phase: null },
   { href: "/knowledge", label: "Knowledge", icon: BookOpen, phase: null },
-  { href: "/integrations", label: "Integrations", icon: Plug, phase: "P6" },
-  { href: "/agents", label: "Agents", icon: Bot, phase: "P6" },
-  { href: "/workflows", label: "Workflows", icon: GitFork, phase: "P6" },
+  { href: "/integrations", label: "Integrations", icon: Plug, phase: null },
+  { href: "/agents", label: "Agents", icon: Bot, phase: null },
+  { href: "/workflows", label: "Workflows", icon: GitFork, phase: null },
   { href: "/settings", label: "Settings", icon: Settings, phase: null },
 ] as const;
 

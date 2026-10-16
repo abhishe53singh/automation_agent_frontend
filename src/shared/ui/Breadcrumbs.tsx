@@ -62,7 +62,7 @@ export function Breadcrumbs({ items, className }: BreadcrumbsProps) {
                 </span>
               ) : (
                 <Link
-                  href={item.href as any}
+                  href={item.href as import("next").Route}
                   className="truncate text-muted-foreground transition-colors hover:text-foreground"
                 >
                   {item.label}

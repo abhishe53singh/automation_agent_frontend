@@ -31,6 +31,7 @@ export interface UpstreamRequest {
   /** Skip the Authorization header (public upstream routes). */
   anonymous?: boolean;
   timeoutMs?: number;
+  redirect?: RequestRedirect;
 }
 
 export interface UpstreamResult<T = unknown> {
@@ -142,6 +143,7 @@ function requestInit(request: UpstreamRequest, accessToken: string | null): Requ
     headers,
     body,
     cache: "no-store",
+    redirect: request.redirect ?? "follow",
     signal: AbortSignal.timeout(request.timeoutMs ?? DEFAULT_UPSTREAM_TIMEOUT_MS),
   };
 }
@@ -211,6 +213,14 @@ async function assertOk<T>(
   response: Response,
 ): Promise<UpstreamResult<T>> {
   if (!response.ok) {
+    if (request.redirect === "manual" && response.status >= 300 && response.status < 400) {
+      const location = response.headers.get("location");
+      return {
+        data: { authorization_url: location, location } as T,
+        status: response.status,
+        headers: response.headers,
+      };
+    }
     const body = await safeJson(response);
     if (getServerEnv().API_DEBUG) console.error("[upstream] error body:", body);
     const code = codeForUpstreamStatus(response.status);

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Breadcrumbs, PageHeader, Card, CardContent, CardHeader, CardTitle, CardDescription, Button } from "@/shared/ui";
+import { Breadcrumbs, PageHeader } from "@/shared/ui";
+import { McpServerList, ApprovalConfirmationList } from "@/modules/mcp";
 
 export const metadata: Metadata = { title: "MCP Registry" };
 
@@ -8,37 +9,20 @@ export default function McpRegistryPage() {
     <div className="mx-auto w-full max-w-5xl space-y-6">
       <PageHeader
         title="MCP Server Registry"
-        description="Register and inspect Model Context Protocol servers and their discovered tools."
+        description="Register and inspect Model Context Protocol servers, configure tool permissions, and review approvals."
         breadcrumbs={
           <Breadcrumbs
             items={[
               { label: "Integrations", href: "/integrations" },
-              { label: "MCP" },
+              { label: "MCP Registry" },
             ]}
           />
         }
       />
 
+      <McpServerList />
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Servers</CardTitle>
-              <CardDescription>
-                Configured Model Context Protocol endpoints.
-              </CardDescription>
-            </div>
-            <Button disabled>Register Server</Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded border border-dashed p-8 text-center text-sm text-muted-foreground">
-            No MCP servers configured yet. Waiting for backend phase 4 integration landing.
-          </div>
-        </CardContent>
-      </Card>
+      <ApprovalConfirmationList />
     </div>
   );
 }
-

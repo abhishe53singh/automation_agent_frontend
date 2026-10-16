@@ -2,7 +2,6 @@
 
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import * as React from "react";
-import { cn } from "@/shared/lib/cn";
 import { Button } from "./Button";
 
 export interface ConfirmDialogProps {
@@ -47,7 +46,7 @@ export function ConfirmDialog({
             </AlertDialogPrimitive.Cancel>
             <AlertDialogPrimitive.Action asChild>
               <Button
-                variant={variant as any}
+                variant={variant === "destructive" ? "destructive" : "primary"}
                 disabled={loading}
                 onClick={(e) => {
                   e.preventDefault();
