@@ -1,10 +1,6 @@
 import { z } from "zod";
 import { apiJson, apiVoid, parseWith, TIMEOUTS } from "@/shared/lib/api";
-import {
-  connectionSchema,
-  type ConnectionCreate,
-  type ProviderConnection,
-} from "./schemas";
+import { connectionSchema, type ConnectionCreate, type ProviderConnection } from "./schemas";
 
 const connectionListSchema = z.array(connectionSchema);
 const enc = (v: string) => encodeURIComponent(v);

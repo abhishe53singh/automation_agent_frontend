@@ -50,6 +50,16 @@ const clientSchema = z.object({
     .enum(["0", "1", "false", "true"])
     .default("0")
     .transform((v) => v === "1" || v === "true"),
+  /**
+   * Google OAuth client ID (public by design). Must match the backend's
+   * GOOGLE_CLIENT_ID, which is the audience it verifies ID tokens against.
+   * Unset = the "Continue with Google" button is hidden.
+   */
+  NEXT_PUBLIC_GOOGLE_CLIENT_ID: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => v || undefined),
 });
 
 export type ClientEnv = z.infer<typeof clientSchema>;
@@ -90,6 +100,7 @@ export function getClientEnv(): ClientEnv {
     {
       NEXT_PUBLIC_ENABLE_ANALYZER: process.env.NEXT_PUBLIC_ENABLE_ANALYZER,
       NEXT_PUBLIC_MOCK: process.env.NEXT_PUBLIC_MOCK,
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
     },
     "client",
   );

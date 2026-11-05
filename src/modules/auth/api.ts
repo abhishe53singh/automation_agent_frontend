@@ -86,9 +86,9 @@ export async function resetPassword(
 }
 
 /**
- * POST /api/auth/google. Kept wired for when the Google Identity script lands —
- * GOOGLE_CLIENT_ID is unset in this backend, so the BFF answers 503
- * (error.upstream) and the UI surfaces that message.
+ * POST /api/auth/google -> `{ user }` + Set-Cookie. The ID token comes from
+ * Google Identity Services (GoogleSignInButton). If the backend has no
+ * GOOGLE_CLIENT_ID the BFF answers 503 and the UI surfaces that message.
  */
 export function googleLogin(idToken: string, signal?: AbortSignal): Promise<AuthSession> {
   return apiJson(

@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { login, logout, signup } from "./api";
+import { googleLogin, login, logout, signup } from "./api";
 import { getSession, userKeys } from "@/modules/users/api";
 import type { User } from "./schemas";
 
@@ -36,6 +36,18 @@ export function useSignup() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: signup,
+    onSuccess: (session) => {
+      queryClient.setQueryData(userKeys.session, session.user);
+      queryClient.invalidateQueries({ queryKey: userKeys.me });
+    },
+  });
+}
+
+/** Exchange a Google ID token (from Google Identity Services) for a session. */
+export function useGoogleLogin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (idToken: string) => googleLogin(idToken),
     onSuccess: (session) => {
       queryClient.setQueryData(userKeys.session, session.user);
       queryClient.invalidateQueries({ queryKey: userKeys.me });

@@ -54,7 +54,7 @@ export function ResetPasswordForm() {
         </CardDescription>
       </CardHeader>
 
-      <form onSubmit={onSubmit} noValidate className="space-y-4">
+      <form method="post" onSubmit={onSubmit} noValidate className="space-y-4">
         <CardContent className="space-y-4">
           {!token ? (
             <p

@@ -41,4 +41,3 @@ export function useDeleteConnection() {
     onError: (err) => toast.error(messageFor(err, "Failed to disconnect.")),
   });
 }
-
