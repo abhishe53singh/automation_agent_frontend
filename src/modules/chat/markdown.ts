@@ -196,7 +196,8 @@ function parseAlign(cell: string): "left" | "center" | "right" {
 
 function normaliseRow<T>(cells: T[], width: number, fill?: T): T[] {
   const out = cells.slice(0, width);
-  while (out.length < width) out.push((fill ?? cells[cells.length - 1] ?? ("" as unknown as T)) as T);
+  while (out.length < width)
+    out.push((fill ?? cells[cells.length - 1] ?? ("" as unknown as T)) as T);
   return out;
 }
 
@@ -261,7 +262,9 @@ export function parseDelimitedTable(code: string): { header: string[]; rows: str
   const delim = detectDelimiter(lines.slice(0, Math.min(5, lines.length)));
   if (!delim) return null;
   const header = parseDelimitedLine(lines[0], delim);
-  const rows = lines.slice(1).map((l) => normaliseRow(parseDelimitedLine(l, delim), header.length, ""));
+  const rows = lines
+    .slice(1)
+    .map((l) => normaliseRow(parseDelimitedLine(l, delim), header.length, ""));
   if (header.length < 2) return null;
   return { header, rows };
 }
@@ -398,4 +401,58 @@ export function parseInline(source: string): InlineToken[] {
 
   flush();
   return tokens;
+}
+
+/**
+ * Normalise the math delimiters LLMs (and users) actually write into the
+ * `$` / `$$` form remark-math understands, without touching code:
+ *
+ *   \[ … \]                      -> display math
+ *   \( … \)                      -> inline math
+ *   a paragraph of bare LaTeX    -> display math, when it contains a
+ *   (\begin{…} … \end{…}, no $)     \begin/\end environment
+ *
+ * Fenced code blocks and inline `code` spans are left exactly as written.
+ */
+export function normalizeMath(source: string): string {
+  if (!source) return "";
+  // Split out fenced code (``` or ~~~) so it is never rewritten.
+  const parts = source.split(/(^(?:```|~~~)[^\n]*\n[\s\S]*?^(?:```|~~~)[ \t]*$)/m);
+  return parts.map((part, index) => (index % 2 === 1 ? part : normalizeProse(part))).join("");
+}
+
+const SPAN_MARK = "\u0000";
+
+function normalizeProse(text: string): string {
+  // Protect inline code spans.
+  const spans: string[] = [];
+  let out = text.replace(/`[^`\n]+`/g, (match) => {
+    spans.push(match);
+    return `${SPAN_MARK}${spans.length - 1}${SPAN_MARK}`;
+  });
+
+  out = out.replace(/\\\[([\s\S]+?)\\\]/g, (_m, body: string) => `\n$$\n${body.trim()}\n$$\n`);
+  out = out.replace(/\\\(([\s\S]+?)\\\)/g, (_m, body: string) => `$${body.trim()}$`);
+  // A line that is just `$$ … $$` is display math (remark-math would make it inline).
+  out = out.replace(
+    /^[ \t]*\$\$([^\n$]+?)\$\$[ \t]*$/gm,
+    (_m, body: string) => `$$\n${body.trim()}\n$$`,
+  );
+
+  // Bare LaTeX environments pasted without any delimiters.
+  out = out
+    .split(/(\n[ \t]*\n)/)
+    .map((paragraph) => {
+      if (paragraph.includes("$")) return paragraph;
+      if (!/\\begin\{[a-zA-Z*]+\}/.test(paragraph) || !/\\end\{[a-zA-Z*]+\}/.test(paragraph)) {
+        return paragraph;
+      }
+      return `$$\n${paragraph.trim()}\n$$`;
+    })
+    .join("");
+
+  return out.replace(
+    new RegExp(`${SPAN_MARK}(\\d+)${SPAN_MARK}`, "g"),
+    (_m, i: string) => spans[Number(i)] ?? "",
+  );
 }

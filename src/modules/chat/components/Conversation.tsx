@@ -1,13 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { GitBranch } from "lucide-react";
+import { Bot, GitBranch } from "lucide-react";
 
+import { Markdown } from "./Markdown";
 import { ResponseCard } from "./ResponseCard";
-import { useBranchChildren } from "../hooks";
+import { useBranchChildren, useRetryResponse } from "../hooks";
 import type { ChatSession, ChatTurn, LlmResponse } from "../schemas";
 import { Badge, Button, Skeleton } from "@/shared/ui";
 import { cn } from "@/shared/lib/cn";
+import { useAgents } from "@/modules/agents/hooks";
 
 /**
  * The conversation: chronological turns, each a user message plus one response
@@ -49,6 +51,14 @@ export function Conversation({
     return map;
   }, [session.models]);
 
+  /** agent id -> name, for the "agents used" badges on each turn. */
+  const agents = useAgents();
+  const agentNames = React.useMemo(
+    () => new Map((agents.data ?? []).map((agent) => [agent.id, agent.name])),
+    [agents.data],
+  );
+  const agentsLoaded = agents.isSuccess;
+
   if (isPending) {
     return (
       <div className="space-y-4">
@@ -78,6 +88,8 @@ export function Conversation({
           session={session}
           turn={turn}
           modelNames={modelNames}
+          agentNames={agentNames}
+          agentsLoaded={agentsLoaded}
           liveResponses={liveResponses}
           isStreaming={streamingTurnId === turn.id}
           onBranchFrom={onBranchFrom}
@@ -91,6 +103,8 @@ function TurnBlock({
   session,
   turn,
   modelNames,
+  agentNames,
+  agentsLoaded,
   liveResponses,
   isStreaming,
   onBranchFrom,
@@ -98,11 +112,14 @@ function TurnBlock({
   session: ChatSession;
   turn: ChatTurn;
   modelNames: Map<string, string>;
+  agentNames: Map<string, string>;
+  agentsLoaded: boolean;
   liveResponses?: ReadonlyMap<string, LlmResponse>;
   isStreaming: boolean;
   onBranchFrom?: (turn: ChatTurn) => void;
 }) {
   const branches = useBranchChildren(session.id, turn.id);
+  const retry = useRetryResponse(session.id);
   const [expanded, setExpanded] = React.useState(false);
   const children = branches.data ?? [];
   const hasBranches = (branches.data?.length ?? 0) > 0;
@@ -111,8 +128,8 @@ function TurnBlock({
     <section className="space-y-3">
       {/* The user's message. */}
       <div className="flex justify-end">
-        <div className="max-w-[85%] rounded-lg rounded-tr-sm bg-primary px-4 py-2.5 text-sm text-primary-foreground">
-          <p className="whitespace-pre-wrap break-words">{turn.user_message?.content ?? ""}</p>
+        <div className="min-w-0 max-w-[85%] overflow-hidden rounded-lg rounded-tr-sm bg-primary px-4 py-2.5 text-sm text-primary-foreground">
+          <Markdown content={turn.user_message?.content ?? ""} tone="inverse" />
         </div>
       </div>
 
@@ -127,6 +144,9 @@ function TurnBlock({
               response={current}
               modelName={modelNames.get(current.model_id) ?? "Model"}
               isStreaming={isStreaming}
+              sessionId={session.id}
+              onRetry={() => retry.mutate({ turnId: turn.id, responseId: current.id })}
+              isRetrying={retry.isPending && retry.variables?.responseId === current.id}
             />
           );
         })}
@@ -161,6 +181,19 @@ function TurnBlock({
             branch
           </Badge>
         ) : null}
+
+        {turn.agent_ids.length > 0 ? (
+          <ul aria-label="Agents used" className="flex flex-wrap items-center gap-1.5">
+            {turn.agent_ids.map((agentId) => (
+              <li key={agentId}>
+                <Badge variant="neutral">
+                  <Bot aria-hidden />
+                  {agentNames.get(agentId) ?? (agentsLoaded ? "Deleted agent" : "Agent")}
+                </Badge>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
 
       {/* Children, indented, fetched lazily. */}
@@ -178,6 +211,8 @@ function TurnBlock({
                 session={session}
                 turn={child}
                 modelNames={modelNames}
+                agentNames={agentNames}
+                agentsLoaded={agentsLoaded}
                 liveResponses={liveResponses}
                 isStreaming={false}
                 onBranchFrom={onBranchFrom}

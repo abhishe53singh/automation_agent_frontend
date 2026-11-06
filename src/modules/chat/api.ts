@@ -163,12 +163,36 @@ export function createTurn(
     content: input.content,
     parent_turn_id: input.parent_turn_id,
     model_ids: input.model_ids,
+    agent_ids: input.agent_ids?.length ? input.agent_ids : undefined,
   });
 
   return apiJson(
     `/api/chat/sessions/${id(sessionId)}/turns`,
     { method: "POST", body: payload, signal, timeoutMs: TIMEOUTS.mutation },
     (value) => parseWith(chatTurnSchema, value, "POST /api/chat/sessions/{id}/turns"),
+  );
+}
+
+/**
+ * POST .../turns/{turnId}/generate — Retry. Re-runs the turn's failed
+ * responses (only `responseIds` when given); completed answers are untouched.
+ */
+export function retryTurnResponses(
+  sessionId: string,
+  turnId: string,
+  responseIds?: string[],
+  signal?: AbortSignal,
+): Promise<ChatTurn> {
+  return apiJson(
+    `/api/chat/sessions/${id(sessionId)}/turns/${id(turnId)}/generate`,
+    {
+      method: "POST",
+      body: responseIds ? { response_ids: responseIds } : {},
+      signal,
+      // LLM + tool calls; matches the BFF route's upstream budget.
+      timeoutMs: 185_000,
+    },
+    (value) => parseWith(chatTurnSchema, value, "POST /api/chat/sessions/{id}/turns/{id}/generate"),
   );
 }
 

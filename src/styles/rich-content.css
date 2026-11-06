@@ -1,0 +1,88 @@
+/* Rich chat content: KaTeX layout + syntax-highlight tokens.
+   Colors come only from theme variables (src/styles/theme.css), so light and
+   dark mode follow the theme automatically. */
+
+/* Display math scrolls sideways instead of overflowing the card. */
+.rich-content .katex-display {
+  margin: 0.25rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25rem 0;
+}
+
+.rich-content .katex {
+  font-size: 1.05em;
+}
+
+/* Render errors stay readable (raw source, theme color) instead of red text. */
+.rich-content .katex-error {
+  color: var(--color-destructive) !important;
+  font-family: var(--font-mono), monospace;
+  white-space: pre-wrap;
+}
+
+/* highlight.js token classes (emitted by lowlight). */
+.rich-content .hljs-comment,
+.rich-content .hljs-quote {
+  color: var(--color-muted-foreground);
+  font-style: italic;
+}
+
+.rich-content .hljs-keyword,
+.rich-content .hljs-selector-tag,
+.rich-content .hljs-literal,
+.rich-content .hljs-doctag {
+  color: var(--color-info);
+}
+
+.rich-content .hljs-string,
+.rich-content .hljs-regexp,
+.rich-content .hljs-addition,
+.rich-content .hljs-template-tag {
+  color: var(--color-success);
+}
+
+.rich-content .hljs-number,
+.rich-content .hljs-symbol,
+.rich-content .hljs-bullet {
+  color: var(--color-warning);
+}
+
+.rich-content .hljs-title,
+.rich-content .hljs-section,
+.rich-content .hljs-function .hljs-title,
+.rich-content .hljs-title.function_ {
+  color: var(--color-chart-1);
+}
+
+.rich-content .hljs-type,
+.rich-content .hljs-built_in,
+.rich-content .hljs-title.class_ {
+  color: var(--color-chart-2);
+}
+
+.rich-content .hljs-attr,
+.rich-content .hljs-attribute,
+.rich-content .hljs-variable,
+.rich-content .hljs-template-variable,
+.rich-content .hljs-property {
+  color: var(--color-chart-3);
+}
+
+.rich-content .hljs-meta,
+.rich-content .hljs-tag,
+.rich-content .hljs-name {
+  color: var(--color-chart-4);
+}
+
+.rich-content .hljs-deletion {
+  color: var(--color-destructive);
+}
+
+.rich-content .hljs-emphasis {
+  font-style: italic;
+}
+
+.rich-content .hljs-strong {
+  font-weight: 600;
+}

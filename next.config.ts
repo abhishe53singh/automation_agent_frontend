@@ -8,6 +8,8 @@ const withBundleAnalyzer = bundleAnalyzer({
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Dev-only "N" badge: keep it off the sidebar footer (profile / sign out).
+  devIndicators: { position: "bottom-right" },
   typedRoutes: true,
   // `next dev` blocks /_next/* dev assets for any origin other than localhost,
   // so the page never hydrates and forms fall back to a native GET submit.

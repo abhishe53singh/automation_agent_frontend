@@ -192,7 +192,12 @@ export const mockChat = {
 
   async createTurn(
     sessionId: string,
-    input: { content: string; parent_turn_id?: string; model_ids?: string[] },
+    input: {
+      content: string;
+      parent_turn_id?: string;
+      model_ids?: string[];
+      agent_ids?: string[];
+    },
   ): Promise<ChatTurn> {
     const session = requireSession(sessionId);
     const override = input.model_ids;
@@ -227,6 +232,7 @@ export const mockChat = {
       llm_responses: targets.map((row) =>
         newResponse(row.model as NonNullable<typeof row.model>, message.id),
       ),
+      agent_ids: input.agent_ids ?? [],
     };
 
     const list = fixtureStore.turns.get(sessionId) ?? [];

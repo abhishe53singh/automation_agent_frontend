@@ -3,7 +3,10 @@
 import * as React from "react";
 import { Send, Square } from "lucide-react";
 
+import { AgentChips, AgentPicker } from "./AgentPicker";
+import { useSessionAgentSelection } from "../agent-selection";
 import { useSubmitTurn } from "../hooks";
+import { useAgents } from "@/modules/agents/hooks";
 import { turnCreateSchema, type ChatSession, type ChatTurn } from "../schemas";
 import { Button, Select, Textarea } from "@/shared/ui";
 import type { StreamState } from "../use-turn-stream";
@@ -44,6 +47,9 @@ export function Composer({
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
   const submit = useSubmitTurn(session.id);
+  /** Custom agents attached to this chat (sticky per session, see agent-selection). */
+  const agents = useAgents();
+  const [agentIds, setAgentIds] = useSessionAgentSelection(session.id, agents.data);
   const enabled = session.models.filter((model) => model.is_enabled);
   const busy = submit.isPending;
   const streaming = streamState === "connecting" || streamState === "streaming";
@@ -58,6 +64,7 @@ export function Composer({
       content: trimmed,
       parent_turn_id: branchFrom?.id,
       model_ids: modelOverride ? [modelOverride] : undefined,
+      agent_ids: agentIds.length > 0 ? agentIds : undefined,
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Check the highlighted fields.");
@@ -99,6 +106,12 @@ export function Composer({
         </div>
       ) : null}
 
+      <AgentChips
+        selectedIds={agentIds}
+        agents={agents.data}
+        onRemove={(id) => setAgentIds(agentIds.filter((value) => value !== id))}
+      />
+
       <Textarea
         ref={textareaRef}
         value={content}
@@ -129,21 +142,35 @@ export function Composer({
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Select
-          aria-label="Model for this round"
-          value={modelOverride}
-          className="h-8 w-48 text-xs"
-          disabled={session.models.length === 0}
-          onChange={(event) => setModelOverride(event.target.value)}
-        >
-          <option value="">All enabled models ({enabled.length})</option>
-          {session.models.map((attached) => (
-            <option key={attached.model_id} value={attached.model_id}>
-              {attached.model?.display_name?.trim() || attached.model?.name || "Model"}
-              {attached.is_enabled ? "" : " (disabled)"}
-            </option>
-          ))}
-        </Select>
+        <div className="flex items-center gap-2">
+          <Select
+            aria-label="Model for this round"
+            value={modelOverride}
+            className="h-8 w-48 text-xs"
+            disabled={session.models.length === 0}
+            onChange={(event) => setModelOverride(event.target.value)}
+          >
+            <option value="">All enabled models ({enabled.length})</option>
+            {session.models.map((attached) => (
+              <option key={attached.model_id} value={attached.model_id}>
+                {attached.model?.display_name?.trim() || attached.model?.name || "Model"}
+                {attached.is_enabled ? "" : " (disabled)"}
+              </option>
+            ))}
+          </Select>
+
+          {/* Separate from the model selector: agents work WITH the chosen models. */}
+          <div className="border-l border-border pl-2">
+            <AgentPicker
+              agents={agents.data}
+              isPending={agents.isPending}
+              error={agents.error}
+              onRetry={() => void agents.refetch()}
+              selectedIds={agentIds}
+              onChange={setAgentIds}
+            />
+          </div>
+        </div>
 
         <div className="flex items-center gap-2">
           {streaming ? (

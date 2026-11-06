@@ -1,14 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  ChevronDown,
-  ChevronRight,
-  Plus,
-  Server,
-  Trash2,
-  Wrench,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Server, Trash2, Wrench } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -113,9 +106,7 @@ function ToolsSection({ server }: { server: McpServer }) {
             >
               <div className="space-y-0.5 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="font-mono font-medium text-xs text-foreground">
-                    {tool.name}
-                  </span>
+                  <span className="font-mono font-medium text-xs text-foreground">{tool.name}</span>
                   <Badge
                     variant={
                       tool.permission === "allowed"
@@ -413,7 +404,9 @@ export function McpServerList() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-medium text-foreground mb-1 block">Server Type</label>
+                <label className="text-xs font-medium text-foreground mb-1 block">
+                  Server Type
+                </label>
                 <Input
                   placeholder="custom"
                   value={serverType}
@@ -438,7 +431,9 @@ export function McpServerList() {
               <label className="text-xs font-medium text-foreground">Endpoint / Command</label>
               <Input
                 placeholder={
-                  transport === "sse" ? "http://localhost:8080/sse" : "npx -y @modelcontextprotocol/..."
+                  transport === "sse"
+                    ? "http://localhost:8080/sse"
+                    : "npx -y @modelcontextprotocol/..."
                 }
                 value={endpoint}
                 onChange={(e) => setEndpoint(e.target.value)}

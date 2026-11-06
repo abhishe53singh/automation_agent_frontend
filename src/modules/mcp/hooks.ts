@@ -146,13 +146,8 @@ export function useCreateApproval() {
 export function useDecideApproval() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      approvalId,
-      decision,
-    }: {
-      approvalId: string;
-      decision: ToolApprovalDecide;
-    }) => decideApproval(approvalId, decision),
+    mutationFn: ({ approvalId, decision }: { approvalId: string; decision: ToolApprovalDecide }) =>
+      decideApproval(approvalId, decision),
     onSuccess: (approval) => {
       void queryClient.invalidateQueries({ queryKey: mcpKeys.approvals() });
       toast.success(`Approval marked as ${approval.status}.`);

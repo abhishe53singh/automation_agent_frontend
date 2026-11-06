@@ -1,7 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { Archive, ArchiveRestore, MessageSquare, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  MessageSquare,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 
 import { useDeleteSession, useUpdateSession } from "../hooks";
 import { sessionLabel, type ChatSession } from "../schemas";
@@ -103,7 +110,9 @@ export function SessionRow({
                 <Pencil className="size-3.5 mr-2" />
                 Rename
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => archive.mutate({ is_archived: !session.archived_at })}>
+              <DropdownMenuItem
+                onClick={() => archive.mutate({ is_archived: !session.archived_at })}
+              >
                 {session.archived_at ? (
                   <>
                     <ArchiveRestore className="size-3.5 mr-2" />

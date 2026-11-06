@@ -11,6 +11,7 @@ import { cn } from "@/shared/lib/cn";
 import { Badge } from "@/shared/ui/Badge";
 
 import { APP_NAME, NAV_ITEMS } from "../_lib/navigation";
+import { SidebarFooter } from "./SidebarFooter";
 
 interface SidebarProps {
   /** Called after a nav link is clicked — used to close the mobile drawer. */
@@ -34,18 +35,16 @@ export function Sidebar({ onNavigate, className }: SidebarProps) {
         {APP_NAME}
       </Link>
 
-      <ul className="flex flex-1 flex-col gap-1">
+      <ul className="-mx-1 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-1">
         {NAV_ITEMS.map(({ href, label, icon: Icon, phase }) => {
           const active = pathname === href || pathname.startsWith(`${href}/`);
           return (
             <li key={href}>
-
               <Link
                 href={href as Route}
                 onClick={onNavigate}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-
                   "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
                   active
                     ? "bg-accent font-medium text-accent-foreground"
@@ -61,9 +60,7 @@ export function Sidebar({ onNavigate, className }: SidebarProps) {
         })}
       </ul>
 
-      <p className="px-2 text-xs text-muted-foreground">
-        Automation Agent platform with multi-model chat and project workspace.
-      </p>
+      <SidebarFooter />
     </nav>
   );
 }

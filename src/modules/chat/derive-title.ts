@@ -13,9 +13,7 @@ export function deriveTitle(content: string): string {
   if (!content) return "New chat";
 
   // 1. Remove code blocks ```...``` and inline code `...`
-  let clean = content
-    .replace(/```[\s\S]*?```/g, "")
-    .replace(/`([^`]+)`/g, "$1");
+  let clean = content.replace(/```[\s\S]*?```/g, "").replace(/`([^`]+)`/g, "$1");
 
   // 2. Remove URLs
   clean = clean.replace(/https?:\/\/\S+/gi, "");
@@ -27,7 +25,10 @@ export function deriveTitle(content: string): string {
     .replace(/[\*_~]/g, "");
 
   // 4. Take the first non-empty line or first sentence
-  const lines = clean.split(/[\r\n]+/).map((l) => l.trim()).filter(Boolean);
+  const lines = clean
+    .split(/[\r\n]+/)
+    .map((l) => l.trim())
+    .filter(Boolean);
   if (lines.length === 0) return "New chat";
 
   let first = lines[0];

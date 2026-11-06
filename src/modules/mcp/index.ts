@@ -3,3 +3,4 @@ export * from "./api";
 export * from "./hooks";
 export * from "./components/ApprovalConfirmationList";
 export * from "./components/McpServerList";
+export * from "./approval-groups";

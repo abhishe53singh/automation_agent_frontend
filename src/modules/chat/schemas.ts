@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { llmModelSchema } from "@/modules/llm/schemas";
+import { toolApprovalSchema } from "@/modules/mcp/schemas";
 
 /**
  * Chat module schemas (.agent/API.md #30-#42; shapes from
@@ -81,6 +82,8 @@ export const llmResponseSchema = z.object({
   error_message: z.string().nullable(),
   created_at: z.string(),
   completed_at: z.string().nullable(),
+  /** Actions this answer's tool calls requested (approve/reject on the card). */
+  tool_approvals: z.array(toolApprovalSchema).default([]),
 });
 export type LlmResponse = z.infer<typeof llmResponseSchema>;
 
@@ -93,6 +96,8 @@ export const chatTurnSchema = z.object({
   created_at: z.string(),
   user_message: chatMessageSchema.nullable(),
   llm_responses: z.array(llmResponseSchema),
+  /** The user's custom agents attached to this round (may be empty). */
+  agent_ids: z.array(z.string().uuid()).default([]),
 });
 export type ChatTurn = z.infer<typeof chatTurnSchema>;
 
@@ -118,6 +123,8 @@ export const turnCreateSchema = z.object({
   content: z.string().trim().min(1, "Type a message first").max(20000, "Message is too long"),
   parent_turn_id: z.string().uuid().optional(),
   model_ids: z.array(z.string().uuid()).optional(),
+  /** Custom agents to attach to this round; works alongside the models. */
+  agent_ids: z.array(z.string().uuid()).optional(),
 });
 export type TurnCreate = z.infer<typeof turnCreateSchema>;
 

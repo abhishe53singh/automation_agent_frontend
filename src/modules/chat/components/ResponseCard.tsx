@@ -1,13 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { AlertCircle, CheckCircle2, Clock } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, RefreshCw } from "lucide-react";
 
 import { Markdown, CopyButton } from "./Markdown";
+import { ResponseApprovals } from "./ResponseApprovals";
 import { downloadTextFile } from "./rich-blocks";
 import type { LlmResponse, LlmResponseStatus } from "../schemas";
 import { CitationBadges } from "@/modules/knowledge";
-import { Badge } from "@/shared/ui";
+import { Badge, Button } from "@/shared/ui";
 
 /**
  * One model's answer to one turn (item 32).
@@ -38,9 +39,22 @@ export interface ResponseCardProps {
   modelName: string;
   /** True while this specific card is still streaming. */
   isStreaming?: boolean;
+  /** Re-run this failed answer. Failures are never retried automatically. */
+  onRetry?: () => void;
+  /** True while this card's retry request is in flight. */
+  isRetrying?: boolean;
+  /** Enables in-chat approval of this answer's tool actions. */
+  sessionId?: string;
 }
 
-export function ResponseCard({ response, modelName, isStreaming }: ResponseCardProps) {
+export function ResponseCard({
+  response,
+  modelName,
+  isStreaming,
+  onRetry,
+  isRetrying = false,
+  sessionId,
+}: ResponseCardProps) {
   const meta = STATUS_META[response.status];
   const Icon = meta.icon;
   const body = response.content ?? "";
@@ -67,7 +81,9 @@ export function ResponseCard({ response, modelName, isStreaming }: ResponseCardP
             <CopyButton text={body} label="Copy answer" />
             <button
               type="button"
-              onClick={() => downloadTextFile(`${modelName || "answer"}.md`, body, "text/markdown;charset=utf-8")}
+              onClick={() =>
+                downloadTextFile(`${modelName || "answer"}.md`, body, "text/markdown;charset=utf-8")
+              }
               className="rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               title="Download answer as markdown"
             >
@@ -78,9 +94,24 @@ export function ResponseCard({ response, modelName, isStreaming }: ResponseCardP
       </header>
 
       {response.status === "failed" ? (
-        <p role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-          {response.error_message?.trim() || "The model did not return an answer."}
-        </p>
+        <div className="space-y-2">
+          <p role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+            {response.error_message?.trim() || "The model did not return an answer."}
+          </p>
+          {onRetry ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onRetry}
+              loading={isRetrying}
+              disabled={isRetrying}
+            >
+              {isRetrying ? null : <RefreshCw aria-hidden />}
+              {isRetrying ? "Retrying…" : "Retry"}
+            </Button>
+          ) : null}
+        </div>
       ) : body ? (
         <Markdown content={body} />
       ) : response.status === "pending" ? (
@@ -90,18 +121,22 @@ export function ResponseCard({ response, modelName, isStreaming }: ResponseCardP
             <span>Waiting for provider adapter…</span>
           </div>
           <p className="text-xs text-muted-foreground/80">
-            Backend is awaiting provider adapter execution (response remains in pending state until an echo/provider adapter is configured).
+            Backend is awaiting provider adapter execution (response remains in pending state until
+            an echo/provider adapter is configured).
           </p>
         </div>
       ) : (
         <p className="text-sm italic text-muted-foreground">The model returned an empty answer.</p>
       )}
 
+      {sessionId ? (
+        <ResponseApprovals sessionId={sessionId} approvals={response.tool_approvals ?? []} />
+      ) : null}
+
       <CitationBadges responseId={response.id} />
 
       <ResponseMetrics response={response} />
     </article>
-
   );
 }
 

@@ -87,6 +87,19 @@ export const toolApprovalSchema = z.object({
   expires_at: z.string().nullable().optional(),
   created_at: z.string(),
   updated_at: z.string(),
+  /** Chat answer that requested this action (null when not from chat). */
+  llm_response_id: z.string().uuid().nullable().optional(),
+  /** Service group for display: mail | calendar | drive | sheets | docs | other. */
+  category: z.string().default("other"),
+  /** Human label for the action, e.g. "Create calendar event". */
+  label: z.string().optional(),
+  /** Additive, non-destructive action: may be approved straight from chat. */
+  approvable_in_chat: z.boolean().default(false),
+  /** Outcome once approved and run: completed | failed | denied | null. */
+  execution_status: z.string().nullable().optional(),
+  execution_error: z.string().nullable().optional(),
+  /** Handler result (e.g. Drive file id / webViewLink, Calendar htmlLink). */
+  execution_output: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 export type ToolApproval = z.infer<typeof toolApprovalSchema>;
 

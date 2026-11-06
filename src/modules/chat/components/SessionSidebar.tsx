@@ -76,9 +76,7 @@ export function SessionSidebar({
     if (!search.trim()) return rawList;
     const term = search.toLowerCase();
     return rawList.filter(
-      (s) =>
-        s.title?.toLowerCase().includes(term) ||
-        s.id.toLowerCase().includes(term),
+      (s) => s.title?.toLowerCase().includes(term) || s.id.toLowerCase().includes(term),
     );
   }, [rawList, search]);
 

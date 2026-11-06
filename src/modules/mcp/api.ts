@@ -41,10 +41,7 @@ export function getMcpServer(id: string, signal?: AbortSignal): Promise<McpServe
   );
 }
 
-export function createMcpServer(
-  input: McpServerCreate,
-  signal?: AbortSignal,
-): Promise<McpServer> {
+export function createMcpServer(input: McpServerCreate, signal?: AbortSignal): Promise<McpServer> {
   return apiJson(
     "/api/mcp/servers",
     { method: "POST", body: input, signal, timeoutMs: TIMEOUTS.mutation },

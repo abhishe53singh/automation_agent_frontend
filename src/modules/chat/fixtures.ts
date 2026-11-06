@@ -137,6 +137,7 @@ export function newResponse(modelRow: LlmModel, messageId: string): LlmResponse 
     error_message: null,
     created_at: now(),
     completed_at: null,
+    tool_approvals: [],
   };
 }
 

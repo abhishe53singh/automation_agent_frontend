@@ -44,6 +44,7 @@ export {
   useCreateSession,
   useDeleteSession,
   useMessages,
+  useRetryResponse,
   useSession,
   useSessions,
   useSetSessionModels,
@@ -58,7 +59,15 @@ export {
   type StreamState,
   type UseTurnStreamResult,
 } from "./use-turn-stream";
-export { parseBlocks, parseDelimitedTable, parseInline, safeHref, looksLikeCsv, type Block, type InlineToken } from "./markdown";
+export {
+  parseBlocks,
+  parseDelimitedTable,
+  parseInline,
+  safeHref,
+  looksLikeCsv,
+  type Block,
+  type InlineToken,
+} from "./markdown";
 export { Composer, type ComposerProps } from "./components/Composer";
 export { Conversation, type ConversationProps } from "./components/Conversation";
 export { CopyButton, Markdown, highlightCode, type MarkdownProps } from "./components/Markdown";

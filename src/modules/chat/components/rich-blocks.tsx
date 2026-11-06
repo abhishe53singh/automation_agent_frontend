@@ -38,7 +38,11 @@ export function useCopyText(text: string, timeoutMs = 1500) {
   return { copied, copy };
 }
 
-export function downloadTextFile(filename: string, content: string, mime = "text/plain;charset=utf-8") {
+export function downloadTextFile(
+  filename: string,
+  content: string,
+  mime = "text/plain;charset=utf-8",
+) {
   const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -98,10 +102,14 @@ export function BlockToolbar({
   const { copied, copy } = useCopyText(copyText ?? "");
   return (
     <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-1.5">
-      <span className="truncate text-[11px] uppercase tracking-wide text-muted-foreground">{title}</span>
+      <span className="truncate text-[11px] uppercase tracking-wide text-muted-foreground">
+        {title}
+      </span>
       <div className="flex shrink-0 items-center gap-1">
         {extra}
-        {copyText ? <ToolButton onClick={() => void copy()} label="Copy" copied={copied} icon="copy" /> : null}
+        {copyText ? (
+          <ToolButton onClick={() => void copy()} label="Copy" copied={copied} icon="copy" />
+        ) : null}
         {download ? (
           <ToolButton
             onClick={() => downloadTextFile(download.filename, download.content, download.mime)}
@@ -143,7 +151,14 @@ export function RichTable({
       <BlockToolbar
         title={caption ?? `Table · ${rows.length} row${rows.length === 1 ? "" : "s"}`}
         copyText={csv}
-        download={download ?? { filename: "table.csv", content: csv, mime: "text/csv;charset=utf-8", label: "CSV" }}
+        download={
+          download ?? {
+            filename: "table.csv",
+            content: csv,
+            mime: "text/csv;charset=utf-8",
+            label: "CSV",
+          }
+        }
       />
       <div className={cn("max-h-80 overflow-auto")}>
         <table className="w-full min-w-max border-collapse text-sm">

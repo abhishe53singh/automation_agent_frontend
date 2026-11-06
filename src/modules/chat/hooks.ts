@@ -18,6 +18,7 @@ import {
   listMessages,
   listSessions,
   listTurns,
+  retryTurnResponses,
   setSessionModelEnabled,
   setSessionModels,
   updateSession,
@@ -60,11 +61,17 @@ export function invalidateChat(
 /** GET /api/chat/sessions — the sidebar list (fixtures in mock mode, item 37). */
 export function useSessions(options: { projectId?: string; includeArchived?: boolean } = {}) {
   return useQuery({
-    queryKey: chatKeys.list({ projectId: options.projectId, includeArchived: options.includeArchived }),
+    queryKey: chatKeys.list({
+      projectId: options.projectId,
+      includeArchived: options.includeArchived,
+    }),
     queryFn: ({ signal }) =>
       isMockMode()
         ? mockChat.listSessions({ includeArchived: options.includeArchived })
-        : listSessions({ projectId: options.projectId, includeArchived: options.includeArchived }, signal),
+        : listSessions(
+            { projectId: options.projectId, includeArchived: options.includeArchived },
+            signal,
+          ),
     staleTime: 30_000,
   });
 }
@@ -199,6 +206,20 @@ export function useToggleSessionModel(sessionId: string) {
         : setSessionModelEnabled(sessionId, modelId, enabled),
     onSuccess: () => invalidateChat(queryClient, "session", sessionId),
     onError: (error) => toast.error(messageFor(error, "Could not change that model.")),
+  });
+}
+
+/**
+ * Retry one failed answer card. Nothing re-runs automatically on failure;
+ * this is the only path, and it is always user-initiated.
+ */
+export function useRetryResponse(sessionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ turnId, responseId }: { turnId: string; responseId: string }) =>
+      retryTurnResponses(sessionId, turnId, [responseId]),
+    onSettled: () => invalidateChat(queryClient, "session", sessionId),
+    onError: (error) => toast.error(messageFor(error, "Retry failed.")),
   });
 }
 

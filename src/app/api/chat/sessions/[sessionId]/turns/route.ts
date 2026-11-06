@@ -45,6 +45,7 @@ export async function POST(
       content,
       parent_turn_id: parentTurnId,
       model_ids: modelIds,
+      agent_ids: agentIds,
     } = (body ?? {}) as Record<string, unknown>;
 
     if (typeof content !== "string" || !content.trim()) {
@@ -58,12 +59,19 @@ export async function POST(
         throw badRequest("`model_ids` must be a list of strings.");
       }
     }
+    if (agentIds !== undefined && agentIds !== null) {
+      if (!Array.isArray(agentIds) || agentIds.some((value) => typeof value !== "string")) {
+        throw badRequest("`agent_ids` must be a list of strings.");
+      }
+    }
 
     const payload: Record<string, unknown> = { content: content.trim() };
     if (typeof parentTurnId === "string" && parentTurnId.trim()) {
       payload.parent_turn_id = parentTurnId.trim();
     }
     if (Array.isArray(modelIds)) payload.model_ids = modelIds;
+    // Custom agents ride alongside the models; an empty list is simply omitted.
+    if (Array.isArray(agentIds) && agentIds.length > 0) payload.agent_ids = agentIds;
 
     const { data } = await callUpstream<unknown>({
       path: `/chat/sessions/${encodeURIComponent(sessionId)}/turns`,
