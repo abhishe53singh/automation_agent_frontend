@@ -10,7 +10,7 @@ export {
   type LoginInput,
   type SignupInput,
 } from "./api";
-export { useLogin, useLogout, useSession, useSignup } from "./hooks";
+export { useGoogleLogin, useLogin, useLogout, useSession, useSignup } from "./hooks";
 export {
   authSessionSchema,
   forgotPasswordSchema,
@@ -36,6 +36,7 @@ export {
   type RegisterValues,
   type ResetPasswordValues,
 } from "./validation";
+export { GoogleSignInButton } from "./components/GoogleSignInButton";
 export { ForgotPasswordForm } from "./components/ForgotPasswordForm";
 export { LoginForm } from "./components/LoginForm";
 export { RegisterForm } from "./components/RegisterForm";

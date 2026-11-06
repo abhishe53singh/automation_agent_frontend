@@ -107,10 +107,15 @@ export function IntegrationsPanel({ projectId }: { projectId?: string }) {
                 )}
                 {googleConnection.scopes && googleConnection.scopes.length > 0 && (
                   <div>
-                    <span className="text-muted-foreground text-xs block mb-1">Granted scopes:</span>
+                    <span className="text-muted-foreground text-xs block mb-1">
+                      Granted scopes:
+                    </span>
                     <div className="flex flex-wrap gap-1">
                       {googleConnection.scopes.map((s) => (
-                        <span key={s} className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono">
+                        <span
+                          key={s}
+                          className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono"
+                        >
                           {s}
                         </span>
                       ))}

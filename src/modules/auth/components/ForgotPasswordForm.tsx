@@ -59,7 +59,7 @@ export function ForgotPasswordForm() {
         <CardDescription>Enter your email and we&apos;ll send you a reset link.</CardDescription>
       </CardHeader>
 
-      <form onSubmit={onSubmit} noValidate className="space-y-4">
+      <form method="post" onSubmit={onSubmit} noValidate className="space-y-4">
         <CardContent className="space-y-4">
           <Input
             label="Email"

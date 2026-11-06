@@ -10,6 +10,8 @@ import { toast } from "sonner";
 import { useLogin } from "../hooks";
 import { loginSchema, type LoginValues } from "../validation";
 import { safeNextPath } from "@/shared/lib/auth-redirect";
+import { AuthDivider, GoogleSignInButton } from "./GoogleSignInButton";
+import { getClientEnv } from "@/config/env";
 import {
   Button,
   Card,
@@ -28,6 +30,7 @@ import {
  */
 export function LoginForm() {
   const router = useRouter();
+  const googleEnabled = Boolean(getClientEnv().NEXT_PUBLIC_GOOGLE_CLIENT_ID);
   const searchParams = useSearchParams();
   const login = useLogin();
   // Read once: the param can only change via a navigation, which remounts us.
@@ -63,7 +66,7 @@ export function LoginForm() {
         <CardDescription>Access your projects, chats and knowledge bases.</CardDescription>
       </CardHeader>
 
-      <form onSubmit={onSubmit} noValidate className="space-y-4">
+      <form method="post" onSubmit={onSubmit} noValidate className="space-y-4">
         <CardContent className="space-y-4">
           <Input
             label="Email or username"
@@ -92,6 +95,12 @@ export function LoginForm() {
           <Button type="submit" fullWidth loading={isSubmitting}>
             Sign in
           </Button>
+          {googleEnabled && (
+            <>
+              <AuthDivider />
+              <GoogleSignInButton redirectTo={nextPath} text="continue_with" />
+            </>
+          )}
           <p className="text-sm text-muted-foreground">
             No account?{" "}
             <Link href="/register" className="text-primary hover:underline">

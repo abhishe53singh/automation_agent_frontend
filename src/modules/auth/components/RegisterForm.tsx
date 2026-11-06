@@ -8,6 +8,8 @@ import { toast } from "sonner";
 
 import { useSignup } from "../hooks";
 import { registerSchema, type RegisterValues } from "../validation";
+import { AuthDivider, GoogleSignInButton } from "./GoogleSignInButton";
+import { getClientEnv } from "@/config/env";
 import {
   Button,
   Card,
@@ -25,6 +27,7 @@ import {
  */
 export function RegisterForm() {
   const router = useRouter();
+  const googleEnabled = Boolean(getClientEnv().NEXT_PUBLIC_GOOGLE_CLIENT_ID);
   const signup = useSignup();
 
   const {
@@ -59,7 +62,7 @@ export function RegisterForm() {
         <CardDescription>Start building projects, chats and knowledge bases.</CardDescription>
       </CardHeader>
 
-      <form onSubmit={onSubmit} noValidate className="space-y-4">
+      <form method="post" onSubmit={onSubmit} noValidate className="space-y-4">
         <CardContent className="space-y-4">
           <Input
             label="Username"
@@ -99,6 +102,12 @@ export function RegisterForm() {
           <Button type="submit" fullWidth loading={isSubmitting}>
             Create account
           </Button>
+          {googleEnabled && (
+            <>
+              <AuthDivider />
+              <GoogleSignInButton redirectTo={"/dashboard"} text="signup_with" />
+            </>
+          )}
           <p className="text-sm text-muted-foreground">
             Already registered?{" "}
             <Link href="/login" className="text-primary hover:underline">
