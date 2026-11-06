@@ -13,8 +13,12 @@ import {
   chatKeys,
   createSession,
   createTurn,
+  deleteAttachment,
   deleteSession,
+  getAttachmentTypes,
   getSession,
+  listAttachments,
+  listChatTools,
   listMessages,
   listSessions,
   listTurns,
@@ -22,6 +26,7 @@ import {
   setSessionModelEnabled,
   setSessionModels,
   updateSession,
+  uploadAttachments,
 } from "./api";
 import type { SessionCreate, SessionUpdate, TurnCreate } from "./schemas";
 
@@ -73,6 +78,61 @@ export function useSessions(options: { projectId?: string; includeArchived?: boo
             signal,
           ),
     staleTime: 30_000,
+  });
+}
+
+/** GET /api/chat/tools — the "+" menu's tools (none in mock mode). */
+export function useChatTools() {
+  return useQuery({
+    queryKey: chatKeys.tools(),
+    queryFn: ({ signal }) => (isMockMode() ? mockChat.listTools() : listChatTools(signal)),
+    staleTime: 60_000,
+  });
+}
+
+/** GET /api/chat/attachments/supported-types — extensions + size limit (rarely changes). */
+export function useAttachmentTypes() {
+  return useQuery({
+    queryKey: chatKeys.attachmentTypes(),
+    queryFn: ({ signal }) => getAttachmentTypes(signal),
+    staleTime: 10 * 60_000,
+    enabled: !isMockMode(),
+  });
+}
+
+/** GET /api/chat/sessions/{id}/attachments — the chat's files (none in mock mode). */
+export function useAttachments(sessionId: string | null | undefined) {
+  return useQuery({
+    queryKey: chatKeys.attachments(sessionId ?? ""),
+    queryFn: ({ signal }) =>
+      isMockMode() ? mockChat.listAttachments() : listAttachments(sessionId as string, signal),
+    enabled: Boolean(sessionId),
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * POST .../attachments — one batch. Callers use `mutateAsync` per batch (the
+ * composer tracks each batch's chips itself); the list refreshes either way.
+ */
+export function useUploadAttachments(sessionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (files: readonly File[]) => uploadAttachments(sessionId, files),
+    onSettled: () =>
+      void queryClient.invalidateQueries({ queryKey: chatKeys.attachments(sessionId) }),
+  });
+}
+
+/** DELETE .../attachments/{id} — removes it from the chat's knowledge base. */
+export function useDeleteAttachment(sessionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (attachmentId: string) => deleteAttachment(sessionId, attachmentId),
+    onSuccess: () => toast.success("File removed from this chat."),
+    onSettled: () =>
+      void queryClient.invalidateQueries({ queryKey: chatKeys.attachments(sessionId) }),
+    onError: (error) => toast.error(messageFor(error, "Could not delete the file.")),
   });
 }
 

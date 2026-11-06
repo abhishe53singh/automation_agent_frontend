@@ -1,7 +1,7 @@
 import { ApiError } from "@/shared/lib/api";
 
 import { completeResponse, fixtureStore, mockId, newResponse, FIXTURE_MODELS } from "./fixtures";
-import type { ChatMessage, ChatSession, ChatTurn } from "./schemas";
+import type { ChatAttachment, ChatMessage, ChatSession, ChatTool, ChatTurn } from "./schemas";
 import type { SseEvent, SseSubscription } from "@/shared/lib/sse";
 
 /**
@@ -97,6 +97,16 @@ function mockSse(
 }
 
 export const mockChat = {
+  /** Mock mode offers no tools; the "+" menu shows its empty tools state. */
+  async listTools(): Promise<ChatTool[]> {
+    return [];
+  },
+
+  /** Mock mode keeps no per-chat files; the Files panel shows its empty state. */
+  async listAttachments(): Promise<ChatAttachment[]> {
+    return [];
+  },
+
   async listSessions(options: { includeArchived?: boolean } = {}): Promise<ChatSession[]> {
     const all = [...fixtureStore.sessions.values()].map(clone);
     return options.includeArchived ? all : all.filter((session) => !session.archived_at);
@@ -197,6 +207,8 @@ export const mockChat = {
       parent_turn_id?: string;
       model_ids?: string[];
       agent_ids?: string[];
+      tool_names?: string[];
+      attachment_ids?: string[];
     },
   ): Promise<ChatTurn> {
     const session = requireSession(sessionId);
@@ -233,6 +245,8 @@ export const mockChat = {
         newResponse(row.model as NonNullable<typeof row.model>, message.id),
       ),
       agent_ids: input.agent_ids ?? [],
+      tool_names: input.tool_names ?? [],
+      attachment_ids: input.attachment_ids ?? [],
     };
 
     const list = fixtureStore.turns.get(sessionId) ?? [];

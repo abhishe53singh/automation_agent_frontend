@@ -6,8 +6,8 @@ import { MathView } from "./MathView";
 
 /**
  * Previews for fenced code blocks (the "Preview" side of the Code/Preview
- * toggle). Markdown previews are rendered by the caller (Markdown.tsx) to
- * avoid a circular import.
+ * toggle). Markdown and quiz previews are rendered by the caller (Markdown.tsx)
+ * to avoid a circular import (both render nested Markdown).
  *
  * SAFETY: HTML and SVG run in an iframe sandboxed WITHOUT `allow-same-origin`,
  * so model-written scripts get an opaque origin: no access to this app's
@@ -15,7 +15,7 @@ import { MathView } from "./MathView";
  * rendered as React text nodes (escaped), never as HTML.
  */
 
-export type PreviewKind = "html" | "svg" | "json" | "xml" | "markdown" | "latex" | "text";
+export type PreviewKind = "html" | "svg" | "json" | "xml" | "markdown" | "latex" | "text" | "quiz";
 
 const KIND_BY_LANG: Record<string, PreviewKind> = {
   html: "html",
@@ -42,6 +42,8 @@ const KIND_BY_LANG: Record<string, PreviewKind> = {
   text: "text",
   plaintext: "text",
   plain: "text",
+  quiz: "quiz",
+  "quiz-json": "quiz",
 };
 
 /** Which preview (if any) a code block supports. */
@@ -69,6 +71,8 @@ export function fileInfo(language: string | null): { ext: string; mime: string }
     xhtml: ["xhtml", "application/xhtml+xml"],
     svg: ["svg", "image/svg+xml"],
     json: ["json", "application/json"],
+    quiz: ["json", "application/json"],
+    "quiz-json": ["json", "application/json"],
     json5: ["json5", "application/json"],
     geojson: ["geojson", "application/geo+json"],
     xml: ["xml", "application/xml"],
@@ -124,7 +128,7 @@ export function CodePreview({
   kind,
   code,
 }: {
-  kind: Exclude<PreviewKind, "markdown">;
+  kind: Exclude<PreviewKind, "markdown" | "quiz">;
   code: string;
 }) {
   switch (kind) {
@@ -331,7 +335,7 @@ function XmlElement({ node, depth }: { node: Element; depth: number }) {
   );
 }
 
-function PreviewError({ title, message }: { title: string; message: string }) {
+export function PreviewError({ title, message }: { title: string; message: string }) {
   return (
     <div role="note" className="p-3 text-xs">
       <p className="font-medium text-destructive">{title}</p>

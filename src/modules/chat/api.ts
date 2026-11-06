@@ -3,14 +3,20 @@ import { z } from "zod";
 import { TIMEOUTS, apiJson, apiVoid, buildUrl, definedOnly, parseWith } from "@/shared/lib/api";
 
 import {
+  chatAttachmentSchema,
+  chatAttachmentTypesSchema,
   chatMessageSchema,
   chatSessionModelSchema,
   chatSessionSchema,
+  chatToolSchema,
   chatTurnSchema,
   llmResponseSchema,
+  type ChatAttachment,
+  type ChatAttachmentTypes,
   type ChatMessage,
   type ChatSession,
   type ChatSessionModel,
+  type ChatTool,
   type ChatTurn,
   type LlmResponse,
   type SessionCreate,
@@ -36,6 +42,9 @@ import {
  *   ["chat", "sessions", id, "turns", turnId] that turn's children (a branch)
  *   ["chat", "sessions", id, "messages"]      the flat message history
  *   ["chat", "sessions", id, "responses", id] one model response
+ *   ["chat", "tools"]                         the "+" menu's pickable tools
+ *   ["chat", "session", id, "attachments"]    the chat's uploaded files
+ *   ["chat", "attachment-types"]              supported attachment extensions
  *
  * The nesting is the invalidation contract: invalidating
  * `["chat","sessions",id]` refreshes the session, its turns AND its messages
@@ -58,11 +67,16 @@ export const chatKeys = {
   messages: (sessionId: string) => ["chat", "session", sessionId, "messages"] as const,
   response: (sessionId: string, responseId: string) =>
     ["chat", "session", sessionId, "responses", responseId] as const,
+  tools: () => ["chat", "tools"] as const,
+  attachments: (sessionId: string) => ["chat", "session", sessionId, "attachments"] as const,
+  attachmentTypes: () => ["chat", "attachment-types"] as const,
 };
 
 const sessionListSchema = z.array(chatSessionSchema);
 const turnListSchema = z.array(chatTurnSchema);
 const messageListSchema = z.array(chatMessageSchema);
+const toolListSchema = z.array(chatToolSchema);
+const attachmentListSchema = z.array(chatAttachmentSchema);
 
 const id = (value: string) => encodeURIComponent(value);
 
@@ -153,6 +167,67 @@ export function setSessionModelEnabled(
   );
 }
 
+/** GET /api/chat/tools — tools the composer can attach (unavailable ones included). */
+export function listChatTools(signal?: AbortSignal): Promise<ChatTool[]> {
+  return apiJson("/api/chat/tools", { signal }, (value) =>
+    parseWith(toolListSchema, value, "GET /api/chat/tools"),
+  );
+}
+
+/** GET /api/chat/attachments/supported-types — allowed extensions + size limit. */
+export function getAttachmentTypes(signal?: AbortSignal): Promise<ChatAttachmentTypes> {
+  return apiJson("/api/chat/attachments/supported-types", { signal }, (value) =>
+    parseWith(chatAttachmentTypesSchema, value, "GET /api/chat/attachments/supported-types"),
+  );
+}
+
+/** GET /api/chat/sessions/{id}/attachments — the chat's files, newest first. */
+export function listAttachments(
+  sessionId: string,
+  signal?: AbortSignal,
+): Promise<ChatAttachment[]> {
+  return apiJson(`/api/chat/sessions/${id(sessionId)}/attachments`, { signal }, (value) =>
+    parseWith(attachmentListSchema, value, "GET /api/chat/sessions/{id}/attachments"),
+  );
+}
+
+/**
+ * POST /api/chat/sessions/{id}/attachments — one multipart request per batch.
+ * Synchronous upstream (parse + embed), so it gets the upload budget. A file
+ * that cannot be parsed comes back with `status: "failed"`.
+ */
+export function uploadAttachments(
+  sessionId: string,
+  files: readonly File[],
+  signal?: AbortSignal,
+): Promise<ChatAttachment[]> {
+  const form = new FormData();
+  for (const file of files) form.append("files", file, file.name);
+  return apiJson(
+    `/api/chat/sessions/${id(sessionId)}/attachments`,
+    // Matches the BFF route's upstream budget (parse + embed is synchronous).
+    { method: "POST", body: form, signal, timeoutMs: 185_000 },
+    (value) => parseWith(attachmentListSchema, value, "POST /api/chat/sessions/{id}/attachments"),
+  );
+}
+
+/** DELETE /api/chat/sessions/{id}/attachments/{attachmentId} */
+export function deleteAttachment(
+  sessionId: string,
+  attachmentId: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  return apiVoid(`/api/chat/sessions/${id(sessionId)}/attachments/${id(attachmentId)}`, {
+    method: "DELETE",
+    signal,
+  });
+}
+
+/** Same-origin URL of an attachment's raw bytes (thumbnails, download). */
+export function attachmentContentUrl(sessionId: string, attachmentId: string): string {
+  return buildUrl(`/api/chat/sessions/${id(sessionId)}/attachments/${id(attachmentId)}/content`);
+}
+
 /** POST /api/chat/sessions/{id}/turns — one round; `parent_turn_id` branches. */
 export function createTurn(
   sessionId: string,
@@ -164,6 +239,8 @@ export function createTurn(
     parent_turn_id: input.parent_turn_id,
     model_ids: input.model_ids,
     agent_ids: input.agent_ids?.length ? input.agent_ids : undefined,
+    tool_names: input.tool_names?.length ? input.tool_names : undefined,
+    attachment_ids: input.attachment_ids?.length ? input.attachment_ids : undefined,
   });
 
   return apiJson(
@@ -261,11 +338,14 @@ export function streamTurnUrl(sessionId: string, turnId: string): string {
   return buildUrl(`/api/chat/sessions/${id(sessionId)}/turns/${id(turnId)}/stream`);
 }
 
-export { chatMessageSchema, chatSessionSchema, chatTurnSchema, llmResponseSchema };
+export { chatMessageSchema, chatSessionSchema, chatToolSchema, chatTurnSchema, llmResponseSchema };
 export type {
+  ChatAttachment,
+  ChatAttachmentTypes,
   ChatMessage,
   ChatSession,
   ChatSessionModel,
+  ChatTool,
   ChatTurn,
   LlmResponse,
   SessionCreate,

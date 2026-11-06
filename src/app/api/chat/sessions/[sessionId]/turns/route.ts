@@ -46,6 +46,8 @@ export async function POST(
       parent_turn_id: parentTurnId,
       model_ids: modelIds,
       agent_ids: agentIds,
+      tool_names: toolNames,
+      attachment_ids: attachmentIds,
     } = (body ?? {}) as Record<string, unknown>;
 
     if (typeof content !== "string" || !content.trim()) {
@@ -64,6 +66,19 @@ export async function POST(
         throw badRequest("`agent_ids` must be a list of strings.");
       }
     }
+    if (toolNames !== undefined && toolNames !== null) {
+      if (!Array.isArray(toolNames) || toolNames.some((value) => typeof value !== "string")) {
+        throw badRequest("`tool_names` must be a list of strings.");
+      }
+    }
+    if (attachmentIds !== undefined && attachmentIds !== null) {
+      if (
+        !Array.isArray(attachmentIds) ||
+        attachmentIds.some((value) => typeof value !== "string" || !value.trim())
+      ) {
+        throw badRequest("`attachment_ids` must be a list of strings.");
+      }
+    }
 
     const payload: Record<string, unknown> = { content: content.trim() };
     if (typeof parentTurnId === "string" && parentTurnId.trim()) {
@@ -72,6 +87,12 @@ export async function POST(
     if (Array.isArray(modelIds)) payload.model_ids = modelIds;
     // Custom agents ride alongside the models; an empty list is simply omitted.
     if (Array.isArray(agentIds) && agentIds.length > 0) payload.agent_ids = agentIds;
+    // Picked tools (ids from GET /chat/tools), forwarded as-is; empty is omitted.
+    if (Array.isArray(toolNames) && toolNames.length > 0) payload.tool_names = toolNames;
+    // Chat attachments sent with THIS message (images go to the model); empty is omitted.
+    if (Array.isArray(attachmentIds) && attachmentIds.length > 0) {
+      payload.attachment_ids = attachmentIds;
+    }
 
     const { data } = await callUpstream<unknown>({
       path: `/chat/sessions/${encodeURIComponent(sessionId)}/turns`,

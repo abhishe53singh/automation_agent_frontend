@@ -5,11 +5,13 @@ import { Bot, GitBranch } from "lucide-react";
 
 import { Markdown } from "./Markdown";
 import { ResponseCard } from "./ResponseCard";
-import { useBranchChildren, useRetryResponse } from "../hooks";
-import type { ChatSession, ChatTurn, LlmResponse } from "../schemas";
+import { useAttachments, useBranchChildren, useChatTools, useRetryResponse } from "../hooks";
+import { TurnAttachments } from "./Attachments";
+import type { ChatAttachment, ChatSession, ChatTool, ChatTurn, LlmResponse } from "../schemas";
 import { Badge, Button, Skeleton } from "@/shared/ui";
 import { cn } from "@/shared/lib/cn";
 import { useAgents } from "@/modules/agents/hooks";
+import { ToolIcon } from "./AgentPicker";
 
 /**
  * The conversation: chronological turns, each a user message plus one response
@@ -59,6 +61,22 @@ export function Conversation({
   );
   const agentsLoaded = agents.isSuccess;
 
+  /** tool id -> tool, for the "tools used" badges on each turn. */
+  const tools = useChatTools();
+  const toolsById = React.useMemo(
+    () => new Map((tools.data ?? []).map((tool) => [tool.id, tool])),
+    [tools.data],
+  );
+  const toolsLoaded = tools.isSuccess;
+
+  /** attachment id -> metadata, for the files shown in each user bubble. */
+  const attachments = useAttachments(session.id);
+  const attachmentsById = React.useMemo(
+    () => new Map((attachments.data ?? []).map((row) => [row.id, row])),
+    [attachments.data],
+  );
+  const attachmentsLoaded = attachments.isSuccess;
+
   if (isPending) {
     return (
       <div className="space-y-4">
@@ -90,6 +108,10 @@ export function Conversation({
           modelNames={modelNames}
           agentNames={agentNames}
           agentsLoaded={agentsLoaded}
+          toolsById={toolsById}
+          toolsLoaded={toolsLoaded}
+          attachmentsById={attachmentsById}
+          attachmentsLoaded={attachmentsLoaded}
           liveResponses={liveResponses}
           isStreaming={streamingTurnId === turn.id}
           onBranchFrom={onBranchFrom}
@@ -105,6 +127,10 @@ function TurnBlock({
   modelNames,
   agentNames,
   agentsLoaded,
+  toolsById,
+  toolsLoaded,
+  attachmentsById,
+  attachmentsLoaded,
   liveResponses,
   isStreaming,
   onBranchFrom,
@@ -114,6 +140,10 @@ function TurnBlock({
   modelNames: Map<string, string>;
   agentNames: Map<string, string>;
   agentsLoaded: boolean;
+  toolsById: Map<string, ChatTool>;
+  toolsLoaded: boolean;
+  attachmentsById: ReadonlyMap<string, ChatAttachment>;
+  attachmentsLoaded: boolean;
   liveResponses?: ReadonlyMap<string, LlmResponse>;
   isStreaming: boolean;
   onBranchFrom?: (turn: ChatTurn) => void;
@@ -130,6 +160,12 @@ function TurnBlock({
       <div className="flex justify-end">
         <div className="min-w-0 max-w-[85%] overflow-hidden rounded-lg rounded-tr-sm bg-primary px-4 py-2.5 text-sm text-primary-foreground">
           <Markdown content={turn.user_message?.content ?? ""} tone="inverse" />
+          <TurnAttachments
+            sessionId={session.id}
+            ids={turn.attachment_ids}
+            byId={attachmentsById}
+            loaded={attachmentsLoaded}
+          />
         </div>
       </div>
 
@@ -182,6 +218,22 @@ function TurnBlock({
           </Badge>
         ) : null}
 
+        {turn.tool_names.length > 0 ? (
+          <ul aria-label="Tools used" className="flex flex-wrap items-center gap-1.5">
+            {turn.tool_names.map((toolId) => {
+              const tool = toolsById.get(toolId);
+              return (
+                <li key={toolId}>
+                  <Badge variant="neutral">
+                    <ToolIcon aria-hidden category={tool?.category} />
+                    {tool?.label ?? (toolsLoaded ? "Removed tool" : "Tool")}
+                  </Badge>
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+
         {turn.agent_ids.length > 0 ? (
           <ul aria-label="Agents used" className="flex flex-wrap items-center gap-1.5">
             {turn.agent_ids.map((agentId) => (
@@ -213,6 +265,10 @@ function TurnBlock({
                 modelNames={modelNames}
                 agentNames={agentNames}
                 agentsLoaded={agentsLoaded}
+                toolsById={toolsById}
+                toolsLoaded={toolsLoaded}
+                attachmentsById={attachmentsById}
+                attachmentsLoaded={attachmentsLoaded}
                 liveResponses={liveResponses}
                 isStreaming={false}
                 onBranchFrom={onBranchFrom}

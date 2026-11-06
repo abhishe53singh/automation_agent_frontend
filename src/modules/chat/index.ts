@@ -1,14 +1,20 @@
 /** Chat module public surface (.agent/API_CONTEXT.txt §1). */
 export {
+  attachmentContentUrl,
   chatKeys,
   chatMessageSchema,
   chatSessionSchema,
+  chatToolSchema,
   chatTurnSchema,
   createSession,
   createTurn,
+  deleteAttachment,
   deleteSession,
+  getAttachmentTypes,
   getResponse,
   getSession,
+  listAttachments,
+  listChatTools,
   listMessages,
   listSessions,
   listTurns,
@@ -18,9 +24,13 @@ export {
   streamTurnUrl,
   updateResponse,
   updateSession,
+  uploadAttachments,
+  type ChatAttachment,
+  type ChatAttachmentTypes,
   type ChatMessage,
   type ChatSession,
   type ChatSessionModel,
+  type ChatTool,
   type ChatTurn,
   type LlmResponse,
   type SessionCreate,
@@ -28,7 +38,10 @@ export {
   type TurnCreate,
 } from "./api";
 export {
+  chatAttachmentSchema,
+  chatAttachmentTypesSchema,
   chatMessageRoleSchema,
+  filterAttachmentFiles,
   isFinalStatus,
   llmResponseStatusSchema,
   sessionCreateSchema,
@@ -40,8 +53,12 @@ export {
 } from "./schemas";
 export {
   invalidateChat,
+  useAttachments,
+  useAttachmentTypes,
   useBranchChildren,
+  useChatTools,
   useCreateSession,
+  useDeleteAttachment,
   useDeleteSession,
   useMessages,
   useRetryResponse,
@@ -52,6 +69,7 @@ export {
   useToggleSessionModel,
   useTurns,
   useUpdateSession,
+  useUploadAttachments,
 } from "./hooks";
 export {
   applyResponseEvent,
@@ -68,7 +86,14 @@ export {
   type Block,
   type InlineToken,
 } from "./markdown";
+export { AttachmentChips, TurnAttachments } from "./components/Attachments";
+export { ChatFilesPanel } from "./components/ChatFilesPanel";
 export { Composer, type ComposerProps } from "./components/Composer";
+export {
+  useComposerAttachments,
+  type ComposerAttachments,
+  type PendingAttachment,
+} from "./use-composer-attachments";
 export { Conversation, type ConversationProps } from "./components/Conversation";
 export { CopyButton, Markdown, highlightCode, type MarkdownProps } from "./components/Markdown";
 export { MathView } from "./components/MathView";

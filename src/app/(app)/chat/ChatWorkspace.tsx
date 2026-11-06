@@ -4,22 +4,15 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
-import {
-  Menu,
-  MessageSquarePlus,
-  Send,
-  Sparkles,
-} from "lucide-react";
+import { Menu, MessageSquarePlus, Send, Sparkles } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { ChatFilesPanel } from "@/modules/chat/components/ChatFilesPanel";
 import { Composer } from "@/modules/chat/components/Composer";
 import { Conversation } from "@/modules/chat/components/Conversation";
 import { ModelSetEditor } from "@/modules/chat/components/ModelSetEditor";
 import { SessionSidebar } from "@/modules/chat/components/SessionSidebar";
-import {
-  useSession,
-  useTurns,
-} from "@/modules/chat/hooks";
+import { useSession, useTurns } from "@/modules/chat/hooks";
 import { useTurnStream } from "@/modules/chat/use-turn-stream";
 import {
   chatKeys,
@@ -29,13 +22,7 @@ import {
 import { sessionLabel, type ChatSession, type ChatTurn } from "@/modules/chat/schemas";
 import { useModels } from "@/modules/llm/hooks";
 import { deriveTitle } from "@/modules/chat/derive-title";
-import {
-  Button,
-  Drawer,
-  EmptyState,
-  Select,
-  Textarea,
-} from "@/shared/ui";
+import { Button, Drawer, EmptyState, Select, Textarea } from "@/shared/ui";
 import { PanelSkeleton } from "@/shared/ui/AsyncBoundary";
 import { isApiError } from "@/shared/lib/api";
 
@@ -216,9 +203,7 @@ function EmptyWorkspace({
         if (stored) {
           const parsed = JSON.parse(stored);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            const valid = parsed.filter((id) =>
-              activeModels.some((m) => m.id === id),
-            );
+            const valid = parsed.filter((id) => activeModels.some((m) => m.id === id));
             if (valid.length > 0) chosenModelIds = valid;
           }
         }
@@ -274,9 +259,7 @@ function EmptyWorkspace({
       onSessionCreated(newSession.id);
     } catch (err: unknown) {
       setIsSubmitting(false);
-      setError(
-        err instanceof Error ? err.message : "Failed to create chat. Please try again.",
-      );
+      setError(err instanceof Error ? err.message : "Failed to create chat. Please try again.");
     }
   };
 
@@ -432,9 +415,7 @@ function OpenChat({
   // Poll when any response is pending (item 77)
   const queryClient = useQueryClient();
   const allTurns = turns.data ?? [];
-  const anyPending = allTurns.some((t) =>
-    t.llm_responses.some((r) => r.status === "pending"),
-  );
+  const anyPending = allTurns.some((t) => t.llm_responses.some((r) => r.status === "pending"));
 
   React.useEffect(() => {
     if (!anyPending) return;
@@ -469,6 +450,7 @@ function OpenChat({
         </div>
 
         <div className="flex items-center gap-2">
+          <ChatFilesPanel sessionId={session.id} />
           <ModelSetEditor session={session} />
           <Button
             type="button"

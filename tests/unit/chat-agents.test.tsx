@@ -142,7 +142,7 @@ function Harness({ agents, initial = [] }: { agents: Agent[]; initial?: string[]
 }
 
 function openPicker() {
-  const trigger = screen.getByRole("button", { name: "Add agent" });
+  const trigger = screen.getByRole("button", { name: "Add tools or agents" });
   fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerType: "mouse" });
 }
 

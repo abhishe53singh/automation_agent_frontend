@@ -98,8 +98,97 @@ export const chatTurnSchema = z.object({
   llm_responses: z.array(llmResponseSchema),
   /** The user's custom agents attached to this round (may be empty). */
   agent_ids: z.array(z.string().uuid()).default([]),
+  /** Tool ids (from GET /chat/tools) attached to this round (may be empty). */
+  tool_names: z.array(z.string()).default([]),
+  /** Per-chat attachments sent with THIS message (may be empty). */
+  attachment_ids: z.array(z.string()).default([]),
 });
 export type ChatTurn = z.infer<typeof chatTurnSchema>;
+
+/** GET /api/chat/tools — one tool the composer's "+" menu can attach. */
+export const chatToolSchema = z.object({
+  /** Opaque id (e.g. `mcp:<uuid>:web_search`); sent back as-is in `tool_names`. */
+  id: z.string(),
+  name: z.string(),
+  label: z.string(),
+  description: z.string(),
+  server_name: z.string(),
+  category: z.string(),
+  available: z.boolean(),
+  unavailable_reason: z.string().nullable(),
+});
+export type ChatTool = z.infer<typeof chatToolSchema>;
+
+/**
+ * A file attached to ONE chat session. Documents are vectorised into that
+ * chat's private knowledge base and searched for every message; images are
+ * sent to the model with the message they were attached to.
+ */
+export const chatAttachmentKindSchema = z.enum(["document", "image"]);
+export type ChatAttachmentKind = z.infer<typeof chatAttachmentKindSchema>;
+
+export const chatAttachmentSchema = z.object({
+  id: z.string().uuid(),
+  filename: z.string(),
+  content_type: z.string().nullable(),
+  size_bytes: z.number(),
+  kind: chatAttachmentKindSchema,
+  status: z.enum(["ready", "failed", "processing"]),
+  error: z.string().nullable(),
+  chunk_count: z.number().int().nullable(),
+  created_at: z.string(),
+});
+export type ChatAttachment = z.infer<typeof chatAttachmentSchema>;
+
+/** GET /chat/attachments/supported-types */
+export const chatAttachmentTypesSchema = z.object({
+  document_extensions: z.array(z.string()),
+  image_extensions: z.array(z.string()),
+  max_size_bytes: z.number(),
+});
+export type ChatAttachmentTypes = z.infer<typeof chatAttachmentTypesSchema>;
+
+/** Lowercased extension including the dot (".pdf"), or "" when there is none. */
+export function fileExtension(filename: string): string {
+  const dot = filename.lastIndexOf(".");
+  return dot === -1 ? "" : filename.slice(dot).toLowerCase();
+}
+
+export interface RejectedFile {
+  file: File;
+  reason: string;
+}
+
+/**
+ * Client-side guard before uploading: keeps files whose extension is
+ * supported and whose size is within the limit; the rest come back with a
+ * human reason for the toast. With no `types` loaded yet, everything passes
+ * (the server still validates).
+ */
+export function filterAttachmentFiles(
+  files: readonly File[],
+  types: ChatAttachmentTypes | undefined,
+): { accepted: File[]; rejected: RejectedFile[] } {
+  const accepted: File[] = [];
+  const rejected: RejectedFile[] = [];
+  const allowed = types
+    ? new Set(
+        [...types.document_extensions, ...types.image_extensions].map((ext) => ext.toLowerCase()),
+      )
+    : null;
+  for (const file of files) {
+    if (file.size === 0) {
+      rejected.push({ file, reason: "is empty" });
+    } else if (allowed && !allowed.has(fileExtension(file.name))) {
+      rejected.push({ file, reason: "is not a supported file type" });
+    } else if (types && file.size > types.max_size_bytes) {
+      rejected.push({ file, reason: "is larger than the upload limit" });
+    } else {
+      accepted.push(file);
+    }
+  }
+  return { accepted, rejected };
+}
 
 /** POST /api/chat/sessions */
 export const sessionCreateSchema = z.object({
@@ -125,6 +214,10 @@ export const turnCreateSchema = z.object({
   model_ids: z.array(z.string().uuid()).optional(),
   /** Custom agents to attach to this round; works alongside the models. */
   agent_ids: z.array(z.string().uuid()).optional(),
+  /** Tool ids from GET /chat/tools (opaque, e.g. `mcp:<uuid>:web_search`). */
+  tool_names: z.array(z.string().min(1)).optional(),
+  /** Ready chat attachments (ids from POST .../attachments) sent with this message. */
+  attachment_ids: z.array(z.string().min(1)).optional(),
 });
 export type TurnCreate = z.infer<typeof turnCreateSchema>;
 

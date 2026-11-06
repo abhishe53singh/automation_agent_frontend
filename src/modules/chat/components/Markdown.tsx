@@ -15,6 +15,7 @@ import remarkMath from "remark-math";
 
 import { normalizeMath, parseDelimitedTable, safeHref } from "../markdown";
 import { CodePreview, fileInfo, previewKind } from "./CodePreview";
+import { QuizPreview, parseQuiz } from "./QuizView";
 import { BlockToolbar, RichTable, downloadTextFile, toCsv, useCopyText } from "./rich-blocks";
 
 /**
@@ -326,13 +327,25 @@ function CodeBlock({ language, code }: { language: string | null; code: string }
   );
   const [view, setView] = React.useState<"preview" | "raw">("preview");
   // Code first for everything else: an HTML preview runs scripts, so it only
-  // starts when the user asks for it.
-  const [codeView, setCodeView] = React.useState<"code" | "preview">("code");
+  // starts when the user asks for it. Quizzes are meant to be taken, so they
+  // open interactive.
+  const [codeView, setCodeView] = React.useState<"code" | "preview">(() =>
+    previewKind(language, code) === "quiz" ? "preview" : "code",
+  );
   const preview = React.useMemo(
     () => (table ? null : previewKind(language, code)),
     [table, language, code],
   );
-  const highlighted = React.useMemo(() => highlightCode(code, language), [code, language]);
+  // A quiz's Code view shows the pretty-printed JSON (when it parses).
+  const source = React.useMemo(() => {
+    if (preview !== "quiz") return code;
+    const parsed = parseQuiz(code);
+    return parsed.status === "ok" ? parsed.pretty : code;
+  }, [preview, code]);
+  const highlighted = React.useMemo(
+    () => highlightCode(source, preview === "quiz" ? "json" : language),
+    [source, preview, language],
+  );
 
   // CSV-ish fenced block: tabular preview + copy/download as .csv.
   if (table) {
@@ -389,11 +402,11 @@ function CodeBlock({ language, code }: { language: string | null; code: string }
   return (
     <div className="overflow-hidden rounded-md border border-border bg-muted/40 text-foreground">
       <BlockToolbar
-        title={language ?? preview ?? "code"}
-        copyText={code}
+        title={preview === "quiz" ? "Quiz" : (language ?? preview ?? "code")}
+        copyText={source}
         download={{
-          filename: `${preview === "html" ? "page" : "snippet"}.${ext}`,
-          content: code.endsWith("\n") ? code : `${code}\n`,
+          filename: `${preview === "html" ? "page" : preview === "quiz" ? "quiz" : "snippet"}.${ext}`,
+          content: source.endsWith("\n") ? source : `${source}\n`,
           mime,
           label: ext.toUpperCase(),
         }}
@@ -425,6 +438,8 @@ function CodeBlock({ language, code }: { language: string | null; code: string }
             <div className="p-3">
               <Markdown content={code} />
             </div>
+          ) : preview === "quiz" ? (
+            <QuizPreview code={code} renderText={renderQuizText} />
           ) : (
             <CodePreview kind={preview} code={code} />
           )}
@@ -436,6 +451,11 @@ function CodeBlock({ language, code }: { language: string | null; code: string }
       )}
     </div>
   );
+}
+
+/** Quiz questions, options and explanations support Markdown + LaTeX. */
+function renderQuizText(text: string): React.ReactNode {
+  return <Markdown content={text} />;
 }
 
 /**
