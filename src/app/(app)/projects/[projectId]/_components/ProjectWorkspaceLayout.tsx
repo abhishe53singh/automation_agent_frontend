@@ -45,12 +45,7 @@ export function ProjectWorkspaceLayout({
   if (project.error || !project.data) {
     return (
       <div className="max-w-4xl space-y-4">
-        <Breadcrumbs
-          items={[
-            { label: "Projects", href: "/projects" },
-            { label: "Not found" },
-          ]}
-        />
+        <Breadcrumbs items={[{ label: "Projects", href: "/projects" }, { label: "Not found" }]} />
         <Card>
           <CardHeader>
             <CardTitle>Not found</CardTitle>
@@ -71,6 +66,11 @@ export function ProjectWorkspaceLayout({
     { href: `/projects/${projectId}/chat` as Route, label: "Chats" },
     { href: `/projects/${projectId}/knowledge` as Route, label: "Knowledge" },
     { href: `/projects/${projectId}/members` as Route, label: "Members" },
+    {
+      href: `/projects/${projectId}/widget` as Route,
+      label: "Website widget",
+      hidden: !userCanEdit,
+    },
     {
       href: `/projects/${projectId}/settings` as Route,
       label: "Settings",

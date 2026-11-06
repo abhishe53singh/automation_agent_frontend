@@ -1,5 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { framePolicyForKey } from "@/server/embed-frame-policy";
+import { embedPageKey, isPublicEmbedPath } from "@/shared/lib/embed-widget";
+
 /**
  * Route guard (.agent/phase_2.txt item 13).
  *
@@ -7,9 +10,10 @@ import { NextResponse, type NextRequest } from "next/server";
  * (`npx @next/codemod@canary middleware-to-proxy`); the export is `proxy`
  * rather than `middleware`.
  *
- * The check is deliberately cookie-only — no upstream round trip — because the
- * proxy runs on the Edge runtime, where `next/headers` (and therefore anything
- * under src/server) is unavailable. `at` is inlined here instead of imported
+ * The session check is deliberately cookie-only — no upstream round trip — and
+ * `next/headers` (and therefore the session helpers under src/server) is not
+ * used here. The one exception is the public widget page, whose framing policy
+ * is resolved from the widget's public config (src/server/embed-frame-policy). `at` is inlined here instead of imported
  * from src/server/session for that reason; keep the two in sync.
  *
  * A *stale* token is caught by the BFF itself, which refreshes once or answers
@@ -26,8 +30,25 @@ function isApiPath(pathname: string): boolean {
   return pathname === "/api" || pathname.startsWith("/api/");
 }
 
-export function proxy(request: NextRequest): NextResponse {
+export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { pathname, search } = request.nextUrl;
+
+  // The public chat widget (page, loader script, BFF) works with or without an
+  // app session and never redirects. `/embed/{key}` additionally gets a
+  // per-widget `frame-ancestors` CSP (X-Frame-Options is omitted for /embed/*
+  // in next.config.ts); an unknown widget fails closed with 'none'.
+  if (isPublicEmbedPath(pathname)) {
+    const response = NextResponse.next();
+    if (pathname.startsWith("/embed/")) {
+      const key = embedPageKey(pathname);
+      response.headers.set(
+        "Content-Security-Policy",
+        key ? await framePolicyForKey(key) : "frame-ancestors 'none'",
+      );
+    }
+    return response;
+  }
+
   const hasSession = Boolean(request.cookies.get(ACCESS_COOKIE)?.value);
   const isAuthRoute = AUTH_ROUTES.includes(pathname);
 
