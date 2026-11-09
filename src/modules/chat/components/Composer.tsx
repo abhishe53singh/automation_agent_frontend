@@ -81,7 +81,7 @@ export function Composer({
   const agents = useAgents();
   const [agentIds, setAgentIds] = useSessionAgentSelection(session.id, agents.data);
   /** Tools picked for this chat; unavailable ones stay selected but are not sent. */
-  const tools = useChatTools();
+  const tools = useChatTools(session.project_id);
   const [toolIds, setToolIds] = useSessionToolSelection(session.id, tools.data);
   const enabled = session.models.filter((model) => model.is_enabled);
   const attachments = useComposerAttachments(session.id);

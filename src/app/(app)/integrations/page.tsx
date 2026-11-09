@@ -11,7 +11,11 @@ import {
   CardTitle,
   PageHeader,
 } from "@/shared/ui";
-import { GoogleConnectNotice, IntegrationsPanel } from "@/modules/integrations";
+import {
+  GoogleConnectNotice,
+  IntegrationsPanel,
+  IntegrationsTransfer,
+} from "@/modules/integrations";
 import { ApprovalConfirmationList } from "@/modules/mcp";
 
 export const metadata: Metadata = { title: "Integrations & Tools" };
@@ -31,6 +35,8 @@ export default function IntegrationsPage() {
       </Suspense>
 
       <IntegrationsPanel />
+
+      <IntegrationsTransfer />
 
       <Card>
         <CardHeader>

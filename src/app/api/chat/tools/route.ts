@@ -10,9 +10,14 @@ import { callUpstream } from "@/server/upstream";
  * unavailable ones (with `unavailable_reason`) so the UI can explain why.
  */
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: Request): Promise<NextResponse> {
   try {
-    const { data } = await callUpstream<unknown>({ path: "/chat/tools" });
+    // `projectId` makes project-level Google connections count as available.
+    const projectId = new URL(request.url).searchParams.get("projectId");
+    const { data } = await callUpstream<unknown>({
+      path: "/chat/tools",
+      query: { project_id: projectId || undefined },
+    });
     return NextResponse.json(data);
   } catch (error) {
     return toErrorResponse(error);

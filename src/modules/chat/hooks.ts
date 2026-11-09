@@ -16,6 +16,7 @@ import {
   deleteAttachment,
   deleteSession,
   getAttachmentTypes,
+  getResponseContext,
   getSession,
   listAttachments,
   listChatTools,
@@ -82,10 +83,15 @@ export function useSessions(options: { projectId?: string; includeArchived?: boo
 }
 
 /** GET /api/chat/tools — the "+" menu's tools (none in mock mode). */
-export function useChatTools() {
+/**
+ * Tools for the "+" menu. Tools are opt-in: the model only gets what is
+ * picked here. `projectId` lets a project's Google connection count.
+ */
+export function useChatTools(projectId?: string | null) {
   return useQuery({
-    queryKey: chatKeys.tools(),
-    queryFn: ({ signal }) => (isMockMode() ? mockChat.listTools() : listChatTools(signal)),
+    queryKey: chatKeys.tools(projectId),
+    queryFn: ({ signal }) =>
+      isMockMode() ? mockChat.listTools() : listChatTools(projectId, signal),
     staleTime: 60_000,
   });
 }
@@ -171,6 +177,19 @@ export function useTurns(sessionId: string | null | undefined) {
 }
 
 /** GET /api/chat/sessions/{id}/turns?parentTurnId — a branch's children. */
+/**
+ * What was sent to the model for one answer. Fetched only when the user opens
+ * "Context"; a stored prompt never changes, so it is cached for good.
+ */
+export function useResponseContext(sessionId: string, responseId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: chatKeys.responseContext(sessionId, responseId),
+    queryFn: ({ signal }) => getResponseContext(sessionId, responseId, signal),
+    enabled: enabled && !isMockMode(),
+    staleTime: Infinity,
+  });
+}
+
 export function useBranchChildren(sessionId: string | null | undefined, turnId: string | null) {
   return useQuery({
     queryKey: chatKeys.turnChildren(sessionId ?? "", turnId ?? ""),

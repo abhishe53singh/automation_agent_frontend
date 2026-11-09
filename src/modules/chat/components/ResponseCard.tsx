@@ -5,6 +5,7 @@ import { AlertCircle, CheckCircle2, Clock, RefreshCw } from "lucide-react";
 
 import { Markdown, CopyButton } from "./Markdown";
 import { ResponseApprovals } from "./ResponseApprovals";
+import { ResponseContextDialog } from "./ResponseContextDialog";
 import { downloadTextFile } from "./rich-blocks";
 import type { LlmResponse, LlmResponseStatus } from "../schemas";
 import { CitationBadges } from "@/modules/knowledge";
@@ -16,10 +17,10 @@ import { Badge, Button } from "@/shared/ui";
  * A round fans out to one card per attached model, so this renders three
  * states from the SAME component — that is what makes the fan-out legible:
  *
- *   pending   — the provider adapter has not written the row yet. Until then
- *               there is genuinely no content, so the card says so instead of
- *               showing an empty bubble (this is the normal state today: the
- *               backend has no provider adapters yet, see .backend_agent).
+ *   pending   — the model is working. With no text yet the card shows
+ *               "Thinking…" (or the live activity, e.g. "Using web_search…");
+ *               once tokens stream in they render as Markdown with a cursor.
+ *               A pending card never times out on its own: it waits.
  *   completed — Markdown body plus the usage/cost/latency badges.
  *   failed    — the provider's `error_message`, never a stack trace.
  */
@@ -39,6 +40,8 @@ export interface ResponseCardProps {
   modelName: string;
   /** True while this specific card is still streaming. */
   isStreaming?: boolean;
+  /** Live activity line while streaming ("Using web_search…"). */
+  liveNote?: string;
   /** Re-run this failed answer. Failures are never retried automatically. */
   onRetry?: () => void;
   /** True while this card's retry request is in flight. */
@@ -51,6 +54,7 @@ export function ResponseCard({
   response,
   modelName,
   isStreaming,
+  liveNote,
   onRetry,
   isRetrying = false,
   sessionId,
@@ -58,6 +62,10 @@ export function ResponseCard({
   const meta = STATUS_META[response.status];
   const Icon = meta.icon;
   const body = response.content ?? "";
+  const writing = response.status === "pending" && body.length > 0;
+  const [contextOpen, setContextOpen] = React.useState(false);
+  // Context is stored once the answer is final; owner chats only (sessionId).
+  const canShowContext = Boolean(sessionId) && response.status !== "pending";
 
   return (
     <article
@@ -68,27 +76,45 @@ export function ResponseCard({
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate text-sm font-medium text-foreground">{modelName}</span>
           <Badge variant={meta.variant}>
-            <Icon aria-hidden />
-            {meta.label}
+            <Icon aria-hidden className={response.status === "pending" ? "animate-pulse" : undefined} />
+            {writing ? "Writing" : response.status === "pending" ? "Thinking" : meta.label}
           </Badge>
-          {isStreaming && response.status === "pending" ? (
-            <span className="text-xs text-muted-foreground">streaming…</span>
+          {isStreaming && response.status === "pending" && liveNote ? (
+            <span className="truncate text-xs text-muted-foreground">{liveNote}</span>
           ) : null}
         </div>
 
-        {body ? (
+        {(body && !writing) || canShowContext ? (
           <div className="flex shrink-0 items-center gap-1">
-            <CopyButton text={body} label="Copy answer" />
-            <button
-              type="button"
-              onClick={() =>
-                downloadTextFile(`${modelName || "answer"}.md`, body, "text/markdown;charset=utf-8")
-              }
-              className="rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              title="Download answer as markdown"
-            >
-              Download
-            </button>
+            {body && !writing ? (
+              <>
+                <CopyButton text={body} label="Copy answer" />
+                <button
+                  type="button"
+                  onClick={() =>
+                    downloadTextFile(
+                      `${modelName || "answer"}.md`,
+                      body,
+                      "text/markdown;charset=utf-8",
+                    )
+                  }
+                  className="rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  title="Download answer as markdown"
+                >
+                  Download
+                </button>
+              </>
+            ) : null}
+            {canShowContext ? (
+              <button
+                type="button"
+                onClick={() => setContextOpen(true)}
+                className="rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                title="Show the system prompt and context sent to the model"
+              >
+                Context
+              </button>
+            ) : null}
           </div>
         ) : null}
       </header>
@@ -113,21 +139,33 @@ export function ResponseCard({
           ) : null}
         </div>
       ) : body ? (
-        <Markdown content={body} />
+        <div aria-busy={writing || undefined}>
+          <Markdown content={body} />
+          {writing ? (
+            <span
+              aria-hidden
+              className="ml-0.5 inline-block h-4 w-1.5 animate-pulse rounded-sm bg-primary align-text-bottom"
+            />
+          ) : null}
+        </div>
       ) : response.status === "pending" ? (
-        <div className="space-y-2 py-2">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="inline-block size-2 animate-ping rounded-full bg-primary" />
-            <span>Waiting for provider adapter…</span>
-          </div>
-          <p className="text-xs text-muted-foreground/80">
-            Backend is awaiting provider adapter execution (response remains in pending state until
-            an echo/provider adapter is configured).
-          </p>
+        <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground" aria-live="polite">
+          <span className="inline-block size-2 animate-ping rounded-full bg-primary" />
+          <span>{liveNote ?? "Thinking…"}</span>
         </div>
       ) : (
         <p className="text-sm italic text-muted-foreground">The model returned an empty answer.</p>
       )}
+
+      {sessionId && contextOpen ? (
+        <ResponseContextDialog
+          open={contextOpen}
+          onClose={() => setContextOpen(false)}
+          sessionId={sessionId}
+          response={response}
+          modelName={modelName}
+        />
+      ) : null}
 
       {sessionId ? (
         <ResponseApprovals sessionId={sessionId} approvals={response.tool_approvals ?? []} />

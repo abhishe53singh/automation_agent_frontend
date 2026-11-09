@@ -4,9 +4,15 @@ import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import Link from "next/link";
 import * as React from "react";
 import {
+  BarChart3,
   Bot,
+  CalendarDays,
   Check,
+  FileText,
   Globe,
+  HardDrive,
+  Mail,
+  Sheet,
   ListChecks,
   Paperclip,
   Plus,
@@ -40,8 +46,24 @@ import { cn } from "@/shared/lib/cn";
 /** Above this many items (tools + agents) the menu gets a search box. */
 const SEARCH_THRESHOLD = 6;
 
-/** Icon for a tool category: "search" is a globe, anything else a wrench. */
-export function ToolIcon({ category, ...props }: { category?: string } & LucideProps) {
+/** Built-in tool groups (ids from GET /chat/tools) and their icons. */
+const BUILTIN_ICONS: Record<string, typeof Wrench> = {
+  "builtin:google_drive": HardDrive,
+  "builtin:google_docs": FileText,
+  "builtin:google_sheets": Sheet,
+  "builtin:gmail": Mail,
+  "builtin:google_calendar": CalendarDays,
+  "builtin:charts": BarChart3,
+};
+
+/** Icon for a tool: built-ins by id, else "search" is a globe, else a wrench. */
+export function ToolIcon({
+  category,
+  id,
+  ...props
+}: { category?: string; id?: string } & LucideProps) {
+  const Builtin = id ? BUILTIN_ICONS[id] : undefined;
+  if (Builtin) return <Builtin {...props} />;
   if (category === "search") return <Globe {...props} />;
   if (category === "quiz") return <ListChecks {...props} />;
   return <Wrench {...props} />;
@@ -305,6 +327,7 @@ function ToolItem({
       </span>
       <ToolIcon
         aria-hidden
+        id={tool.id}
         category={tool.category}
         className="mt-0.5 size-4 shrink-0 text-muted-foreground"
       />
@@ -363,7 +386,7 @@ export function ToolChips({ selectedIds, tools, onRemove, disabled, className }:
               unavailable && "opacity-60",
             )}
           >
-            <ToolIcon aria-hidden category={tool?.category} className="size-3" />
+            <ToolIcon aria-hidden id={tool?.id} category={tool?.category} className="size-3" />
             <span className={cn("max-w-[12rem] truncate", unavailable && "line-through")}>
               {label}
             </span>

@@ -94,10 +94,14 @@ export async function POST(
       payload.attachment_ids = attachmentIds;
     }
 
+    // Upstream only stores the turn and queues generation (the answer streams
+    // over .../turns/{id}/stream), so this returns quickly; the budget is just
+    // a generous ceiling, never the length of an answer.
     const { data } = await callUpstream<unknown>({
       path: `/chat/sessions/${encodeURIComponent(sessionId)}/turns`,
       method: "POST",
       body: payload,
+      timeoutMs: 60_000,
     });
     return NextResponse.json(data, { status: 201 });
   } catch (error) {

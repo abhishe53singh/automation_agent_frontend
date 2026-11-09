@@ -37,3 +37,56 @@ export function createConnection(
 export function deleteConnection(id: string, signal?: AbortSignal): Promise<void> {
   return apiVoid(`/api/integrations/connections/${enc(id)}`, { method: "DELETE", signal });
 }
+
+// ---------------------------------------------------------------------------
+// Export / import (password-encrypted file)
+// ---------------------------------------------------------------------------
+
+const bundleSummarySchema = z.object({
+  connections: z
+    .array(
+      z.object({ provider: z.string().nullable(), has_refresh_token: z.boolean() }).passthrough(),
+    )
+    .default([]),
+  mcp_servers: z
+    .array(z.object({ name: z.string().nullable(), tools: z.number() }).passthrough())
+    .default([]),
+});
+
+const exportResultSchema = z.object({
+  filename: z.string(),
+  bundle: z.record(z.string(), z.unknown()),
+  summary: bundleSummarySchema,
+});
+export type IntegrationsExport = z.infer<typeof exportResultSchema>;
+
+const importResultSchema = z.object({
+  summary: bundleSummarySchema,
+  connections_created: z.number(),
+  connections_updated: z.number(),
+  connections_skipped: z.array(z.string()).default([]),
+  servers_created: z.number(),
+  servers_updated: z.number(),
+  tools_created: z.number(),
+  tools_updated: z.number(),
+});
+export type IntegrationsImportResult = z.infer<typeof importResultSchema>;
+
+export function exportIntegrations(password: string): Promise<IntegrationsExport> {
+  return apiJson(
+    "/api/integrations/export",
+    { method: "POST", body: { password }, timeoutMs: 35_000 },
+    (data) => parseWith(exportResultSchema, data, "POST /api/integrations/export"),
+  );
+}
+
+export function importIntegrations(
+  password: string,
+  bundle: Record<string, unknown>,
+): Promise<IntegrationsImportResult> {
+  return apiJson(
+    "/api/integrations/import",
+    { method: "POST", body: { password, bundle }, timeoutMs: 35_000 },
+    (data) => parseWith(importResultSchema, data, "POST /api/integrations/import"),
+  );
+}

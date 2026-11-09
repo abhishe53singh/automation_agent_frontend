@@ -87,6 +87,30 @@ export const llmResponseSchema = z.object({
 });
 export type LlmResponse = z.infer<typeof llmResponseSchema>;
 
+/** What was sent to the model for one answer ("Show context"). */
+export const responseContextSchema = z.object({
+  response_id: z.string().uuid(),
+  available: z.boolean(),
+  path: z.string().nullable().default(null),
+  messages: z.array(z.object({ role: z.string(), content: z.string() })).default([]),
+  tools: z.array(z.object({ name: z.string(), description: z.string().default("") })).default([]),
+  tool_calls: z
+    .array(
+      z
+        .object({
+          round: z.number().optional(),
+          name: z.string().optional(),
+          arguments: z.unknown().optional(),
+          status: z.string().nullable().optional(),
+          result: z.string().optional(),
+        })
+        .passthrough(),
+    )
+    .default([]),
+  meta: z.record(z.string(), z.unknown()).default({}),
+});
+export type ResponseContext = z.infer<typeof responseContextSchema>;
+
 /** One round: the user message plus one response card per fan-out model. */
 export const chatTurnSchema = z.object({
   id: z.string().uuid(),

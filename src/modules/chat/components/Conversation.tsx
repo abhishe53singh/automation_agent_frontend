@@ -29,6 +29,10 @@ export interface ConversationProps {
   liveResponses?: ReadonlyMap<string, LlmResponse>;
   /** The turn currently being streamed, if any. */
   streamingTurnId?: string | null;
+  /** Live activity line per response id ("Using web_search…"). */
+  liveNotes?: ReadonlyMap<string, string>;
+  /** Open the live stream for a turn (after the user presses Retry). */
+  onStreamTurn?: (turnId: string) => void;
   /** Called when the user asks to branch from a turn (item 33). */
   onBranchFrom?: (turn: ChatTurn) => void;
 }
@@ -39,6 +43,8 @@ export function Conversation({
   isPending,
   liveResponses,
   streamingTurnId,
+  liveNotes,
+  onStreamTurn,
   onBranchFrom,
 }: ConversationProps) {
   /** model_id -> display name, for labelling the response cards. */
@@ -62,7 +68,7 @@ export function Conversation({
   const agentsLoaded = agents.isSuccess;
 
   /** tool id -> tool, for the "tools used" badges on each turn. */
-  const tools = useChatTools();
+  const tools = useChatTools(session.project_id);
   const toolsById = React.useMemo(
     () => new Map((tools.data ?? []).map((tool) => [tool.id, tool])),
     [tools.data],
@@ -113,7 +119,9 @@ export function Conversation({
           attachmentsById={attachmentsById}
           attachmentsLoaded={attachmentsLoaded}
           liveResponses={liveResponses}
-          isStreaming={streamingTurnId === turn.id}
+          liveNotes={liveNotes}
+          streamingTurnId={streamingTurnId ?? null}
+          onStreamTurn={onStreamTurn}
           onBranchFrom={onBranchFrom}
         />
       ))}
@@ -132,7 +140,9 @@ function TurnBlock({
   attachmentsById,
   attachmentsLoaded,
   liveResponses,
-  isStreaming,
+  liveNotes,
+  streamingTurnId,
+  onStreamTurn,
   onBranchFrom,
 }: {
   session: ChatSession;
@@ -145,9 +155,12 @@ function TurnBlock({
   attachmentsById: ReadonlyMap<string, ChatAttachment>;
   attachmentsLoaded: boolean;
   liveResponses?: ReadonlyMap<string, LlmResponse>;
-  isStreaming: boolean;
+  liveNotes?: ReadonlyMap<string, string>;
+  streamingTurnId: string | null;
+  onStreamTurn?: (turnId: string) => void;
   onBranchFrom?: (turn: ChatTurn) => void;
 }) {
+  const isStreaming = streamingTurnId === turn.id;
   const branches = useBranchChildren(session.id, turn.id);
   const retry = useRetryResponse(session.id);
   const [expanded, setExpanded] = React.useState(false);
@@ -180,8 +193,15 @@ function TurnBlock({
               response={current}
               modelName={modelNames.get(current.model_id) ?? "Model"}
               isStreaming={isStreaming}
+              liveNote={isStreaming ? liveNotes?.get(current.id) : undefined}
               sessionId={session.id}
-              onRetry={() => retry.mutate({ turnId: turn.id, responseId: current.id })}
+              onRetry={() =>
+                retry.mutate(
+                  { turnId: turn.id, responseId: current.id },
+                  // Retry only re-queues the answer; follow it live.
+                  { onSuccess: () => onStreamTurn?.(turn.id) },
+                )
+              }
               isRetrying={retry.isPending && retry.variables?.responseId === current.id}
             />
           );
@@ -225,7 +245,7 @@ function TurnBlock({
               return (
                 <li key={toolId}>
                   <Badge variant="neutral">
-                    <ToolIcon aria-hidden category={tool?.category} />
+                    <ToolIcon aria-hidden id={toolId} category={tool?.category} />
                     {tool?.label ?? (toolsLoaded ? "Removed tool" : "Tool")}
                   </Badge>
                 </li>
@@ -270,7 +290,9 @@ function TurnBlock({
                 attachmentsById={attachmentsById}
                 attachmentsLoaded={attachmentsLoaded}
                 liveResponses={liveResponses}
-                isStreaming={false}
+                liveNotes={liveNotes}
+                streamingTurnId={streamingTurnId}
+                onStreamTurn={onStreamTurn}
                 onBranchFrom={onBranchFrom}
               />
             ))}

@@ -6,9 +6,10 @@ import { openUpstreamStream } from "@/server/upstream-stream";
  *
  * Upstream emits, per turn:
  *   `event: response` + data = `LlmResponseResponse` JSON, once per changed row
- *   `: keep-alive` comment every 1 s
+ *   `event: delta`    + `{ response_id, text, replace, note }` per token batch
+ *   `: keep-alive` comment every 5 s when idle
  *   `event: done`      + `{ "message_id": uuid, "responses": int }` (terminal)
- *   `event: timeout`   + the same shape, after the 300 s upstream cap
+ *   `event: timeout`   + the same shape, only after 300 s with NOTHING generating
  *
  * The bytes are proxied VERBATIM — this route deliberately does not parse or
  * rewrite frames, so the browser's `EventSource` sees exactly what the backend
@@ -20,8 +21,8 @@ import { openUpstreamStream } from "@/server/upstream-stream";
  *   3. A heartbeat comment is injected on an idle timer, so an intermediary
  *      that would time out a silent connection still sees traffic.
  *
- * Note this is DB-polling SSE (1 s poll), not token-by-token streaming: a
- * `response` event arrives when a row's state changes, not per token.
+ * Tokens are pushed as `delta` events while the model writes; the final
+ * `response` event carries the stored answer and always wins.
  */
 
 const HEARTBEAT_MS = 15_000;

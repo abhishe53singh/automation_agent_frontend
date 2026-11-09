@@ -12,7 +12,16 @@ import { Composer } from "@/modules/chat/components/Composer";
 import { Conversation } from "@/modules/chat/components/Conversation";
 import { ModelSetEditor } from "@/modules/chat/components/ModelSetEditor";
 import { SessionSidebar } from "@/modules/chat/components/SessionSidebar";
-import { useSession, useTurns } from "@/modules/chat/hooks";
+import { AgentPicker } from "@/modules/chat/components/AgentPicker";
+import { useChatTools, useSession, useTurns } from "@/modules/chat/hooks";
+import {
+  sendableToolNames,
+  useSessionAgentSelection,
+  useSessionToolSelection,
+  writeAgentSelection,
+  writeToolSelection,
+} from "@/modules/chat/agent-selection";
+import { useAgents } from "@/modules/agents/hooks";
 import { useTurnStream } from "@/modules/chat/use-turn-stream";
 import {
   chatKeys,
@@ -171,6 +180,14 @@ function EmptyWorkspace({
   const { data: modelsList, isPending: modelsPending } = useModels();
   const queryClient = useQueryClient();
 
+  // The "+" menu works before the chat exists: picks are kept under a
+  // placeholder key and handed to the real session once it is created.
+  const draftKey = `new:${projectId ?? "personal"}`;
+  const agents = useAgents();
+  const [agentIds, setAgentIds] = useSessionAgentSelection(draftKey, agents.data);
+  const tools = useChatTools(projectId);
+  const [toolIds, setToolIds] = useSessionToolSelection(draftKey, tools.data);
+
   const activeModels = (modelsList ?? []).filter((m) => m.is_active);
 
   // Suggested prompts
@@ -232,11 +249,21 @@ function EmptyWorkspace({
         // Ignore
       }
 
+      // The picks become this chat's sticky selection; the next new chat
+      // starts clean (tools are opt-in).
+      writeToolSelection(newSession.id, toolIds);
+      writeAgentSelection(newSession.id, agentIds);
+
       // 2. Submit the turn
+      const toolNames = sendableToolNames(toolIds, tools.data);
       const turn = await createTurnApi(newSession.id, {
         content: query,
         model_ids: chosenModelIds,
+        agent_ids: agentIds.length > 0 ? agentIds : undefined,
+        tool_names: toolNames.length > 0 ? toolNames : undefined,
       });
+      setToolIds([]);
+      setAgentIds([]);
 
       // 3. Auto-title (interim client derivation per Item 76)
       const generatedTitle = deriveTitle(query);
@@ -353,20 +380,37 @@ function EmptyWorkspace({
           ) : null}
 
           <div className="flex items-center justify-between gap-2">
-            <Select
-              aria-label="Model choice"
-              value={modelOverride}
-              className="h-8 w-44 text-xs"
-              disabled={activeModels.length === 0 || isSubmitting}
-              onChange={(e) => setModelOverride(e.target.value)}
-            >
-              <option value="">All active models ({activeModels.length})</option>
-              {activeModels.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.display_name?.trim() || m.name}
-                </option>
-              ))}
-            </Select>
+            <div className="flex min-w-0 items-center gap-2">
+              <Select
+                aria-label="Model choice"
+                value={modelOverride}
+                className="h-8 w-44 text-xs"
+                disabled={activeModels.length === 0 || isSubmitting}
+                onChange={(e) => setModelOverride(e.target.value)}
+              >
+                <option value="">All active models ({activeModels.length})</option>
+                {activeModels.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.display_name?.trim() || m.name}
+                  </option>
+                ))}
+              </Select>
+              <AgentPicker
+                agents={agents.data}
+                isPending={agents.isPending}
+                error={agents.error}
+                onRetry={() => void agents.refetch()}
+                selectedIds={agentIds}
+                onChange={setAgentIds}
+                tools={tools.data}
+                toolsPending={tools.isPending}
+                toolsError={tools.error}
+                onRetryTools={() => void tools.refetch()}
+                selectedToolIds={toolIds}
+                onToolsChange={setToolIds}
+                disabled={isSubmitting}
+              />
+            </div>
 
             <Button
               type="submit"
@@ -398,23 +442,48 @@ function OpenChat({
   onOpenDrawer: () => void;
   onNewChat: () => void;
 }) {
-  const [streamingTurnId, setStreamingTurnId] = React.useState<string | null>(null);
+  // `attempt` re-opens the stream for the same turn (Retry after a failure).
+  const [streaming, setStreaming] = React.useState<{ turnId: string; attempt: number } | null>(
+    null,
+  );
+  const streamingTurnId = streaming?.turnId ?? null;
   const [branchFrom, setBranchFrom] = React.useState<ChatTurn | null>(null);
-  const stream = useTurnStream(session.id, streamingTurnId);
+  const stream = useTurnStream(session.id, streamingTurnId, streaming?.attempt ?? 0);
 
-  // Clear streaming state when done/timeout/error after 4 seconds
+  const followTurn = React.useCallback((turnId: string) => {
+    setStreaming((current) => ({
+      turnId,
+      attempt: current?.turnId === turnId ? current.attempt + 1 : 0,
+    }));
+  }, []);
+
+  const allTurns = turns.data ?? [];
+
+  // Opened (or reloaded) while an answer is still being written: follow it
+  // live instead of waiting for the next poll. Done once, on first load.
+  const [resumeChecked, setResumeChecked] = React.useState(false);
+  if (!resumeChecked && turns.data) {
+    setResumeChecked(true);
+    const latest = turns.data[turns.data.length - 1];
+    if (!streaming && latest?.llm_responses.some((r) => r.status === "pending")) {
+      setStreaming({ turnId: latest.id, attempt: 0 });
+    }
+  }
+
+  // Clear streaming state a few seconds after the stream ends.
+  const streamKey = streaming ? `${streaming.turnId}:${streaming.attempt}` : null;
   React.useEffect(() => {
     if (stream.state === "done" || stream.state === "timeout" || stream.state === "error") {
       const timer = setTimeout(() => {
-        setStreamingTurnId(null);
+        setStreaming(null);
       }, 4000);
       return () => clearTimeout(timer);
     }
-  }, [stream.state]);
+  }, [stream.state, streamKey]);
 
-  // Poll when any response is pending (item 77)
+  // Poll when any response is pending (item 77). Pending never turns into
+  // "failed" on the client: the card keeps its loader until the server says.
   const queryClient = useQueryClient();
-  const allTurns = turns.data ?? [];
   const anyPending = allTurns.some((t) => t.llm_responses.some((r) => r.status === "pending"));
 
   React.useEffect(() => {
@@ -471,7 +540,9 @@ function OpenChat({
           turns={allTurns}
           isPending={turns.isPending}
           liveResponses={stream.responses}
+          liveNotes={stream.notes}
           streamingTurnId={streamingTurnId}
+          onStreamTurn={followTurn}
           onBranchFrom={setBranchFrom}
         />
       </div>
@@ -484,7 +555,7 @@ function OpenChat({
           streamState={stream.state}
           onStopStream={stream.stop}
           onSubmitted={(turn) => {
-            setStreamingTurnId(turn.id);
+            followTurn(turn.id);
             setBranchFrom(null);
           }}
         />
@@ -497,10 +568,10 @@ function StreamIndicator({ state }: { state: ReturnType<typeof useTurnStream>["s
   const copy: Record<ReturnType<typeof useTurnStream>["state"], string | null> = {
     idle: null,
     connecting: "Connecting to the models…",
-    streaming: "Receiving answers…",
+    streaming: "Writing answers…",
     done: "All answers received.",
-    timeout: "Timed out — showing partial answers.",
-    error: "The live connection failed.",
+    timeout: "Nothing is generating any more — reload to check.",
+    error: "Live updates dropped — the answer will still appear when ready.",
   };
 
   const text = copy[state];
@@ -509,11 +580,7 @@ function StreamIndicator({ state }: { state: ReturnType<typeof useTurnStream>["s
   return (
     <p
       aria-live="polite"
-      className={
-        state === "error" || state === "timeout"
-          ? "text-xs text-destructive"
-          : "text-xs text-muted-foreground"
-      }
+      className={state === "timeout" ? "text-xs text-destructive" : "text-xs text-muted-foreground"}
     >
       {text}
     </p>

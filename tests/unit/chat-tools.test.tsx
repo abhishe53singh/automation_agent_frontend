@@ -103,9 +103,21 @@ describe("BFF chat tools routes", () => {
     const { callUpstream } = await import("@/server/upstream");
     const mocked = vi.mocked(callUpstream);
     mocked.mockClear();
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/chat/tools"));
     expect(response.status).toBe(200);
     expect(mocked.mock.calls[0]?.[0]).toMatchObject({ path: "/chat/tools" });
+  });
+
+  it("forwards projectId so a project's Google connection counts", async () => {
+    const { GET } = await import("@/app/api/chat/tools/route");
+    const { callUpstream } = await import("@/server/upstream");
+    const mocked = vi.mocked(callUpstream);
+    mocked.mockClear();
+    await GET(new Request("http://localhost/api/chat/tools?projectId=p1"));
+    expect(mocked.mock.calls[0]?.[0]).toMatchObject({
+      path: "/chat/tools",
+      query: { project_id: "p1" },
+    });
   });
 
   it("forwards tool_names as-is", async () => {

@@ -14,10 +14,17 @@ import { consumeSse, type SseEvent, type SseSubscription } from "@/shared/lib/ss
  *
  *   idle        — nothing streaming
  *   connecting  — the request is open but no event has arrived
- *   streaming   — at least one `response` event seen
+ *   streaming   — events are arriving (rows and/or live tokens)
  *   done        — the terminal `done` event (every response is final)
- *   timeout     — the terminal `timeout` event (the 300 s upstream cap)
+ *   timeout     — the terminal `timeout` event: upstream saw NOTHING generating
+ *                 for 5 minutes (a stuck row). A long answer never times out.
  *   error       — the stream failed; the turns query was still invalidated
+ *
+ * Token streaming: while a model writes, upstream sends `delta` events
+ * `{ response_id, text, replace, note }`. `replace` means "start this answer
+ * over from `text`" (a tool round began, so the preamble is discarded); `note`
+ * is an activity line such as "Using web_search…". The final `response` event
+ * carries the stored answer and always wins over the streamed text.
  */
 export type StreamState = "idle" | "connecting" | "streaming" | "done" | "timeout" | "error";
 
@@ -25,12 +32,36 @@ export interface UseTurnStreamResult {
   state: StreamState;
   /** Live response rows received on this stream, keyed by response id. */
   responses: ReadonlyMap<string, LlmResponse>;
+  /** Current activity line per response id ("Using web_search…"), if any. */
+  notes: ReadonlyMap<string, string>;
   error: ApiError | null;
   /** Stop listening early (the turn keeps running server-side). */
   stop: () => void;
 }
 
 const TERMINAL_EVENTS = new Set(["done", "timeout"]);
+
+interface DeltaEvent {
+  response_id: string;
+  text: string;
+  replace: boolean;
+  note: string | null;
+}
+
+function parseDeltaEvent(data: string): DeltaEvent | null {
+  try {
+    const value = JSON.parse(data) as Partial<DeltaEvent>;
+    if (typeof value.response_id !== "string" || typeof value.text !== "string") return null;
+    return {
+      response_id: value.response_id,
+      text: value.text,
+      replace: value.replace === true,
+      note: typeof value.note === "string" ? value.note : null,
+    };
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Parse a `response` event payload. Returns null (never throws) when the frame
@@ -81,21 +112,39 @@ export function applyResponseEvent(turns: unknown, response: LlmResponse): unkno
  * `turnId` change, and whenever a terminal event arrives, so the BFF cancels the
  * upstream fetch rather than leaving it polling for the full 300 s cap.
  */
-export function useTurnStream(sessionId: string, turnId: string | null): UseTurnStreamResult {
+export function useTurnStream(
+  sessionId: string,
+  turnId: string | null,
+  /** Bump to re-open the stream for the SAME turn (e.g. after Retry). */
+  attempt = 0,
+): UseTurnStreamResult {
   const queryClient = useQueryClient();
   const [state, setState] = React.useState<StreamState>("idle");
   const [responses, setResponses] = React.useState<Map<string, LlmResponse>>(new Map());
+  const [notes, setNotes] = React.useState<Map<string, string>>(new Map());
   const [error, setError] = React.useState<ApiError | null>(null);
   const subscriptionRef = React.useRef<SseSubscription | null>(null);
+
+  // A new stream starts from a clean slate. Resetting during render (React's
+  // "derived state" pattern) avoids a stale `done` from the PREVIOUS turn
+  // leaking into the next one.
+  const streamKey = turnId ? `${turnId}:${attempt}` : null;
+  const [trackedKey, setTrackedKey] = React.useState(streamKey);
+  if (trackedKey !== streamKey) {
+    setTrackedKey(streamKey);
+    setState("idle");
+    setResponses(new Map());
+    setNotes(new Map());
+    setError(null);
+  }
 
   React.useEffect(() => {
     if (!turnId) return;
 
     const controller = new AbortController();
 
-    // No setState reset here: a new turn means a new session/turn key upstream,
-    // which remounts this component, so `state`/`responses`/`error` already
-    // start clean (react-hooks/set-state-in-effect).
+    // No setState reset here: the render-time `streamKey` check above already
+    // cleared state for this turn (react-hooks/set-state-in-effect).
 
     // One handler set, shared by the live SSE client and the fixture emitter.
     const handlers = {
@@ -105,6 +154,32 @@ export function useTurnStream(sessionId: string, turnId: string | null): UseTurn
       },
 
       onEvent: (event: SseEvent) => {
+        if (event.event === "delta") {
+          const delta = parseDeltaEvent(event.data);
+          if (!delta) return;
+          setState("streaming");
+          setResponses((current) => {
+            const base = current.get(delta.response_id);
+            // Rows arrive before deltas; without one there is nothing to patch.
+            if (!base || base.status !== "pending") return current;
+            const next = new Map(current);
+            next.set(delta.response_id, {
+              ...base,
+              content: delta.replace ? delta.text : (base.content ?? "") + delta.text,
+            });
+            return next;
+          });
+          setNotes((current) => {
+            const had = current.get(delta.response_id);
+            if ((had ?? null) === delta.note) return current;
+            const next = new Map(current);
+            if (delta.note) next.set(delta.response_id, delta.note);
+            else next.delete(delta.response_id);
+            return next;
+          });
+          return;
+        }
+
         if (event.event === "response") {
           const response = parseResponseEvent(event.data);
           if (!response) {
@@ -114,10 +189,25 @@ export function useTurnStream(sessionId: string, turnId: string | null): UseTurn
             return;
           }
           setResponses((current) => {
+            const previous = current.get(response.id);
             const next = new Map(current);
-            next.set(response.id, response);
+            // A still-pending row carries no content yet; keep streamed text.
+            next.set(
+              response.id,
+              response.status === "pending" && previous?.content
+                ? { ...response, content: previous.content }
+                : response,
+            );
             return next;
           });
+          if (response.status !== "pending") {
+            setNotes((current) => {
+              if (!current.has(response.id)) return current;
+              const next = new Map(current);
+              next.delete(response.id);
+              return next;
+            });
+          }
           setState("streaming");
 
           // Patch the cached turn in place for an instant card update (item 85, K11).
@@ -144,7 +234,7 @@ export function useTurnStream(sessionId: string, turnId: string | null): UseTurn
         if (event.event === "timeout") {
           setState("timeout");
           void queryClient.invalidateQueries({ queryKey: chatKeys.session(sessionId) });
-          toast.warning("The models took too long. Partial answers are shown.");
+          toast.warning("Nothing is generating this answer any more. Reload the chat to check on it.");
         }
       },
 
@@ -175,7 +265,7 @@ export function useTurnStream(sessionId: string, turnId: string | null): UseTurn
       subscription.close();
       subscriptionRef.current = null;
     };
-  }, [sessionId, turnId, queryClient]);
+  }, [sessionId, turnId, attempt, queryClient]);
 
   const stop = React.useCallback(() => {
     subscriptionRef.current?.close();
@@ -190,5 +280,5 @@ export function useTurnStream(sessionId: string, turnId: string | null): UseTurn
       ? "connecting"
       : state;
 
-  return { state: resolved, responses, error, stop };
+  return { state: resolved, responses, notes, error, stop };
 }

@@ -2,7 +2,14 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { integrationKeys, listConnections, deleteConnection, createConnection } from "./api";
+import {
+  integrationKeys,
+  listConnections,
+  deleteConnection,
+  createConnection,
+  exportIntegrations,
+  importIntegrations,
+} from "./api";
 import type { ConnectionCreate } from "./schemas";
 import { isApiError } from "@/shared/lib/api";
 
@@ -39,5 +46,27 @@ export function useDeleteConnection() {
       toast.success("Disconnected.");
     },
     onError: (err) => toast.error(messageFor(err, "Failed to disconnect.")),
+  });
+}
+
+/** Download the integration setup as a password-encrypted file. */
+export function useExportIntegrations() {
+  return useMutation({
+    mutationFn: (password: string) => exportIntegrations(password),
+  });
+}
+
+/** Import an export file; refreshes everything that may have changed. */
+export function useImportIntegrations() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ password, bundle }: { password: string; bundle: Record<string, unknown> }) =>
+      importIntegrations(password, bundle),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: integrationKeys.all });
+      void queryClient.invalidateQueries({ queryKey: ["mcp"] });
+      // The chat "+" menu shows Google tools as available once connected.
+      void queryClient.invalidateQueries({ queryKey: ["chat", "tools"] });
+    },
   });
 }

@@ -11,6 +11,7 @@ import {
   chatToolSchema,
   chatTurnSchema,
   llmResponseSchema,
+  responseContextSchema,
   type ChatAttachment,
   type ChatAttachmentTypes,
   type ChatMessage,
@@ -19,6 +20,7 @@ import {
   type ChatTool,
   type ChatTurn,
   type LlmResponse,
+  type ResponseContext,
   type SessionCreate,
   type SessionUpdate,
   type TurnCreate,
@@ -67,7 +69,9 @@ export const chatKeys = {
   messages: (sessionId: string) => ["chat", "session", sessionId, "messages"] as const,
   response: (sessionId: string, responseId: string) =>
     ["chat", "session", sessionId, "responses", responseId] as const,
-  tools: () => ["chat", "tools"] as const,
+  responseContext: (sessionId: string, responseId: string) =>
+    ["chat", "session", sessionId, "responses", responseId, "context"] as const,
+  tools: (projectId?: string | null) => ["chat", "tools", projectId ?? null] as const,
   attachments: (sessionId: string) => ["chat", "session", sessionId, "attachments"] as const,
   attachmentTypes: () => ["chat", "attachment-types"] as const,
 };
@@ -168,9 +172,14 @@ export function setSessionModelEnabled(
 }
 
 /** GET /api/chat/tools — tools the composer can attach (unavailable ones included). */
-export function listChatTools(signal?: AbortSignal): Promise<ChatTool[]> {
-  return apiJson("/api/chat/tools", { signal }, (value) =>
-    parseWith(toolListSchema, value, "GET /api/chat/tools"),
+export function listChatTools(
+  projectId?: string | null,
+  signal?: AbortSignal,
+): Promise<ChatTool[]> {
+  return apiJson(
+    "/api/chat/tools",
+    { signal, query: { projectId: projectId ?? undefined } },
+    (value) => parseWith(toolListSchema, value, "GET /api/chat/tools"),
   );
 }
 
@@ -245,7 +254,8 @@ export function createTurn(
 
   return apiJson(
     `/api/chat/sessions/${id(sessionId)}/turns`,
-    { method: "POST", body: payload, signal, timeoutMs: TIMEOUTS.mutation },
+    // Returns as soon as the turn is stored; the answer arrives over SSE.
+    { method: "POST", body: payload, signal, timeoutMs: 65_000 },
     (value) => parseWith(chatTurnSchema, value, "POST /api/chat/sessions/{id}/turns"),
   );
 }
@@ -304,6 +314,20 @@ export function getResponse(
     { signal },
     (value) =>
       parseWith(llmResponseSchema, value, "GET /api/chat/sessions/{id}/responses/{responseId}"),
+  );
+}
+
+/** GET .../responses/{responseId}/context — what was sent to the model. */
+export function getResponseContext(
+  sessionId: string,
+  responseId: string,
+  signal?: AbortSignal,
+): Promise<ResponseContext> {
+  return apiJson(
+    `/api/chat/sessions/${id(sessionId)}/responses/${id(responseId)}/context`,
+    { signal },
+    (value) =>
+      parseWith(responseContextSchema, value, "GET /api/chat/sessions/{id}/responses/{id}/context"),
   );
 }
 
