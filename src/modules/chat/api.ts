@@ -237,6 +237,11 @@ export function attachmentContentUrl(sessionId: string, attachmentId: string): s
   return buildUrl(`/api/chat/sessions/${id(sessionId)}/attachments/${id(attachmentId)}/content`);
 }
 
+/** Same-origin download URL of a file the assistant generated for an answer. */
+export function generatedFileUrl(sessionId: string, fileId: string): string {
+  return buildUrl(`/api/chat/sessions/${id(sessionId)}/generated-files/${id(fileId)}/download`);
+}
+
 /** POST /api/chat/sessions/{id}/turns — one round; `parent_turn_id` branches. */
 export function createTurn(
   sessionId: string,
@@ -280,6 +285,25 @@ export function retryTurnResponses(
       timeoutMs: 185_000,
     },
     (value) => parseWith(chatTurnSchema, value, "POST /api/chat/sessions/{id}/turns/{id}/generate"),
+  );
+}
+
+const stopResultSchema = z.object({
+  stopped_responses: z.number().int(),
+  stopped_turns: z.number().int(),
+});
+export type StopResult = z.infer<typeof stopResultSchema>;
+
+/**
+ * POST /api/chat/sessions/{id}/stop — stop every model still answering in this
+ * chat. Streamed text is kept; models that had not started are marked
+ * "Stopped by user.". Open turn streams then finish with their normal `done`.
+ */
+export function stopSessionGeneration(sessionId: string, signal?: AbortSignal): Promise<StopResult> {
+  return apiJson(
+    `/api/chat/sessions/${id(sessionId)}/stop`,
+    { method: "POST", body: {}, signal, timeoutMs: TIMEOUTS.mutation },
+    (value) => parseWith(stopResultSchema, value, "POST /api/chat/sessions/{id}/stop"),
   );
 }
 
@@ -376,3 +400,28 @@ export type {
   SessionUpdate,
   TurnCreate,
 };
+
+// ---------------------------------------------------------------------------
+// Background-turn status (app-wide completion notifications)
+// ---------------------------------------------------------------------------
+
+const turnStatusSchema = z.object({
+  turn_id: z.string(),
+  session_id: z.string(),
+  session_title: z.string().nullable(),
+  /** running | completed | failed | partial (some answers failed) | stalled */
+  state: z.string(),
+  completed: z.number(),
+  failed: z.number(),
+  total: z.number(),
+});
+export type TurnStatus = z.infer<typeof turnStatusSchema>;
+
+/** POST /api/chat/turns/status — unknown / foreign turn ids are simply absent. */
+export function getTurnStatuses(turnIds: string[], signal?: AbortSignal): Promise<TurnStatus[]> {
+  return apiJson(
+    "/api/chat/turns/status",
+    { method: "POST", body: { turn_ids: turnIds }, signal },
+    (value) => parseWith(z.array(turnStatusSchema), value, "POST /api/chat/turns/status"),
+  );
+}

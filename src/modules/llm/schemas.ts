@@ -19,6 +19,14 @@ const decimalToNumber = z
  * Upstream `LlmProviderResponse`. Note: no secret is ever returned — only
  * `has_api_key` tells the UI whether a key is stored in the DB.
  */
+/**
+ * Registry lifecycle. `active` = selectable for new chats; `archived` = hidden
+ * from new selections, existing chats keep it; `deleted` = soft-deleted,
+ * hidden everywhere (restorable). Rows are never removed.
+ */
+export const registryStatusSchema = z.enum(["active", "archived", "deleted"]);
+export type RegistryStatus = z.infer<typeof registryStatusSchema>;
+
 export const llmProviderSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
@@ -27,6 +35,7 @@ export const llmProviderSchema = z.object({
   api_key_env: z.string().nullable(),
   has_api_key: z.boolean(),
   is_active: z.boolean(),
+  status: registryStatusSchema.default("active"),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -43,6 +52,12 @@ export const llmModelSchema = z.object({
   context_window: z.number().int().nullable(),
   max_output_tokens: z.number().int().nullable(),
   is_active: z.boolean(),
+  /** The model's own lifecycle state. */
+  status: registryStatusSchema.default("active"),
+  /** Own state combined with its provider's (a deleted provider wins). */
+  effective_status: registryStatusSchema.default("active"),
+  /** True only when it may be picked for new chats. Use this, not is_active. */
+  selectable: z.boolean().default(true),
   created_at: z.string(),
   updated_at: z.string(),
 });

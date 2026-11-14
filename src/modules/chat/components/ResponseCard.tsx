@@ -4,6 +4,7 @@ import * as React from "react";
 import { AlertCircle, CheckCircle2, Clock, RefreshCw } from "lucide-react";
 
 import { Markdown, CopyButton } from "./Markdown";
+import { GeneratedFiles } from "./GeneratedFiles";
 import { ResponseApprovals } from "./ResponseApprovals";
 import { ResponseContextDialog } from "./ResponseContextDialog";
 import { downloadTextFile } from "./rich-blocks";
@@ -156,6 +157,15 @@ export function ResponseCard({
       ) : (
         <p className="text-sm italic text-muted-foreground">The model returned an empty answer.</p>
       )}
+
+      <GeneratedFiles
+        files={response.attachments ?? []}
+        sessionId={sessionId}
+        // The tool loop announces "Using generate_file…" while it runs.
+        generating={
+          response.status === "pending" && Boolean(isStreaming && liveNote?.includes("generate_file"))
+        }
+      />
 
       {sessionId && contextOpen ? (
         <ResponseContextDialog

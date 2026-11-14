@@ -2,6 +2,7 @@
 
 import { ProviderList } from "./ProviderList";
 import { ModelList } from "./ModelList";
+import { RegistryTransfer } from "./RegistryTransfer";
 import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/ui";
 
 /**
@@ -22,21 +23,32 @@ export function LlmSettings() {
         </p>
       </div>
 
+      <RegistryTransfer />
+
       <ProviderList />
       <ModelList />
 
       <Card>
         <CardHeader>
-          <CardTitle>How deletion behaves</CardTitle>
+          <CardTitle>Archive vs. delete</CardTitle>
           <CardDescription>
-            Removing a provider also removes its models. If any of them already appear in chat
-            history the request is refused with a conflict — the row stays, so existing chats keep
-            working.
+            Nothing is ever erased from the registry, so chat history always stays intact.
           </CardDescription>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          Active models are offered in the chat model picker. Deactivating a model hides it from new
-          chats without breaking existing ones.
+        <CardContent className="space-y-2 text-sm text-muted-foreground">
+          <p>
+            <strong className="text-foreground">Archive</strong> hides a model or provider from new
+            chats. Chats that already use it keep working. Unarchive it from the Archived tab.
+          </p>
+          <p>
+            <strong className="text-foreground">Delete</strong> removes it from every model
+            selection, including chats that used it: their messages stay, but they must pick another
+            model to continue. Restore it from the Deleted tab.
+          </p>
+          <p>
+            Archiving or deleting a provider does the same for all of its models, without changing
+            them; restoring the provider brings them back.
+          </p>
         </CardContent>
       </Card>
     </div>

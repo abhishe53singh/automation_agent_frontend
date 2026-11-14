@@ -13,10 +13,13 @@ import { callUpstream } from "@/server/upstream";
 
 export async function GET(request: Request): Promise<NextResponse> {
   try {
-    const providerId = new URL(request.url).searchParams.get("providerId");
+    const params = new URL(request.url).searchParams;
+    const providerId = params.get("providerId");
+    // active | archived | deleted | all; omitted = everything except deleted.
+    const status = params.get("status");
     const { data } = await callUpstream<unknown>({
       path: "/llm/models",
-      query: { provider_id: providerId || undefined },
+      query: { provider_id: providerId || undefined, status: status || undefined },
     });
     return NextResponse.json(data);
   } catch (error) {

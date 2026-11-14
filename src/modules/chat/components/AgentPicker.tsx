@@ -8,6 +8,7 @@ import {
   Bot,
   CalendarDays,
   Check,
+  FilePlus2,
   FileText,
   Globe,
   HardDrive,
@@ -54,6 +55,7 @@ const BUILTIN_ICONS: Record<string, typeof Wrench> = {
   "builtin:gmail": Mail,
   "builtin:google_calendar": CalendarDays,
   "builtin:charts": BarChart3,
+  "builtin:files": FilePlus2,
 };
 
 /** Icon for a tool: built-ins by id, else "search" is a globe, else a wrench. */

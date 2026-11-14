@@ -11,9 +11,14 @@ import { callUpstream } from "@/server/upstream";
  * the legacy `api_key_env` env-var name).
  */
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: Request): Promise<NextResponse> {
   try {
-    const { data } = await callUpstream<unknown>({ path: "/llm/providers" });
+    // active | archived | deleted | all; omitted = everything except deleted.
+    const status = new URL(request.url).searchParams.get("status");
+    const { data } = await callUpstream<unknown>({
+      path: "/llm/providers",
+      query: { status: status || undefined },
+    });
     return NextResponse.json(data);
   } catch (error) {
     return toErrorResponse(error);

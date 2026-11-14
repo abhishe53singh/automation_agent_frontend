@@ -19,7 +19,11 @@ import {
 import { useChatTools, useSubmitTurn } from "../hooks";
 import { useAgents } from "@/modules/agents/hooks";
 import { turnCreateSchema, type ChatSession, type ChatTurn } from "../schemas";
-import { Button, Select, Textarea } from "@/shared/ui";
+import { toast } from "sonner";
+
+import { stopSessionGeneration } from "../api";
+import { Button, Textarea } from "@/shared/ui";
+import { ModelMultiSelect } from "./ModelMultiSelect";
 import type { StreamState } from "../use-turn-stream";
 import { useComposerAttachments } from "../use-composer-attachments";
 import { cn } from "@/shared/lib/cn";
@@ -42,10 +46,8 @@ export interface ComposerProps {
   /** The turn a new message would branch from, when armed. */
   branchFrom: ChatTurn | null;
   onCancelBranch: () => void;
-  /** Live state of the active stream, used for the busy indicator. */
+  /** Live state of the active stream: shows Stop while models are answering. */
   streamState: StreamState;
-  /** Stop listening to the stream (the round keeps running server-side). */
-  onStopStream: () => void;
   onSubmitted?: (turn: ChatTurn) => void;
 }
 
@@ -54,13 +56,29 @@ export function Composer({
   branchFrom,
   onCancelBranch,
   streamState,
-  onStopStream,
   onSubmitted,
 }: ComposerProps) {
+  const [stopping, setStopping] = React.useState(false);
+  /**
+   * Stop every model still answering in this chat (server-side). The stream
+   * stays open: it receives the closed rows and its normal `done` (which
+   * re-reads the chat), so the cards settle without a reload.
+   */
+  const stopGeneration = async () => {
+    if (stopping) return;
+    setStopping(true);
+    try {
+      await stopSessionGeneration(session.id);
+    } catch {
+      toast.error("Could not stop the answers. Try again.");
+    } finally {
+      setStopping(false);
+    }
+  };
   const [content, setContent] = React.useState("");
   const [error, setError] = React.useState<string | undefined>();
-  /** Per-round model override; empty means "use the session's enabled set". */
-  const [modelOverride, setModelOverride] = React.useState("");
+  /** Per-round model pick; null means "use the session's enabled set". */
+  const [modelSelection, setModelSelection] = React.useState<string[] | null>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   /** Escape hides the slash-command hint until the text changes. */
   const [hintDismissed, setHintDismissed] = React.useState(false);
@@ -83,7 +101,27 @@ export function Composer({
   /** Tools picked for this chat; unavailable ones stay selected but are not sent. */
   const tools = useChatTools(session.project_id);
   const [toolIds, setToolIds] = useSessionToolSelection(session.id, tools.data);
-  const enabled = session.models.filter((model) => model.is_enabled);
+  // A deleted model (or one of a deleted provider) can never be picked again;
+  // the chat keeps its history but the model leaves every selection.
+  const usableModels = session.models.filter(
+    (attached) => attached.model?.effective_status !== "deleted",
+  );
+  const enabled = usableModels.filter((model) => model.is_enabled);
+  // The per-message pick was deleted since: never swap in another model
+  // silently - the user chooses again.
+  const overrideGone =
+    modelSelection !== null &&
+    modelSelection.some((id) => !usableModels.some((m) => m.model_id === id));
+  const enabledIds = React.useMemo(() => enabled.map((m) => m.model_id), [enabled]);
+  const modelOptions = React.useMemo(
+    () =>
+      usableModels.map((attached) => ({
+        id: attached.model_id,
+        label: attached.model?.display_name?.trim() || attached.model?.name || "Model",
+        note: attached.is_enabled ? undefined : "(disabled)",
+      })),
+    [usableModels],
+  );
   const attachments = useComposerAttachments(session.id);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = React.useState(false);
@@ -98,11 +136,16 @@ export function Composer({
     const trimmed = content.trim();
     if (!trimmed) return;
 
+    if (modelSelection !== null && modelSelection.length === 0) {
+      setError("Pick at least one model.");
+      return;
+    }
+
     const toolNames = sendableToolNames(toolIds, tools.data);
     const parsed = turnCreateSchema.safeParse({
       content: trimmed,
       parent_turn_id: branchFrom?.id,
-      model_ids: modelOverride ? [modelOverride] : undefined,
+      model_ids: modelSelection ?? undefined,
       agent_ids: agentIds.length > 0 ? agentIds : undefined,
       tool_names: toolNames.length > 0 ? toolNames : undefined,
       attachment_ids: attachments.readyIds.length > 0 ? attachments.readyIds : undefined,
@@ -111,9 +154,17 @@ export function Composer({
       setError(parsed.error.issues[0]?.message ?? "Check the highlighted fields.");
       return;
     }
+    if (overrideGone) {
+      setError("A model you picked for this message was deleted. Choose the models again.");
+      return;
+    }
     // The backend rejects a round with no enabled model (400), so warn first.
     if (enabled.length === 0) {
-      setError("Enable at least one model for this chat first.");
+      setError(
+        session.models.length > usableModels.length
+          ? "This chat's model is no longer available. Choose a model (Models button) to continue."
+          : "Enable at least one model for this chat first.",
+      );
       return;
     }
     setError(undefined);
@@ -254,21 +305,18 @@ export function Composer({
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Select
-            aria-label="Model for this round"
-            value={modelOverride}
-            className="h-8 w-48 text-xs"
-            disabled={session.models.length === 0}
-            onChange={(event) => setModelOverride(event.target.value)}
-          >
-            <option value="">All enabled models ({enabled.length})</option>
-            {session.models.map((attached) => (
-              <option key={attached.model_id} value={attached.model_id}>
-                {attached.model?.display_name?.trim() || attached.model?.name || "Model"}
-                {attached.is_enabled ? "" : " (disabled)"}
-              </option>
-            ))}
-          </Select>
+          <ModelMultiSelect
+            options={modelOptions}
+            allIds={enabledIds}
+            // A deleted pick never silently swaps: show "none" so the user re-picks.
+            value={overrideGone ? [] : modelSelection}
+            onChange={(next) => {
+              setModelSelection(next);
+              setError(undefined);
+            }}
+            allLabel="All enabled models"
+            disabled={usableModels.length === 0}
+          />
 
           {/* Separate from the model selector: tools and agents work WITH the chosen models. */}
           <div className="flex items-center gap-1.5 border-l border-border pl-2">
@@ -304,9 +352,16 @@ export function Composer({
 
         <div className="flex items-center gap-2">
           {streaming ? (
-            <Button type="button" variant="ghost" size="sm" onClick={onStopStream}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={stopGeneration}
+              loading={stopping}
+              title="Stop every model answering in this chat"
+            >
               <Square aria-hidden />
-              Stop listening
+              Stop
             </Button>
           ) : null}
           <Button

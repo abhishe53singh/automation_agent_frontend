@@ -272,7 +272,6 @@ describe("Composer attachment chips", () => {
         branchFrom={null}
         onCancelBranch={() => undefined}
         streamState="idle"
-        onStopStream={() => undefined}
       />,
     );
 
@@ -317,7 +316,6 @@ describe("Composer attachment chips", () => {
         branchFrom={null}
         onCancelBranch={() => undefined}
         streamState="idle"
-        onStopStream={() => undefined}
       />,
     );
     const input = screen.getByTestId("composer-file-input");
@@ -338,7 +336,6 @@ describe("Composer attachment chips", () => {
         branchFrom={null}
         onCancelBranch={() => undefined}
         streamState="idle"
-        onStopStream={() => undefined}
       />,
     );
     const input = screen.getByTestId("composer-file-input");

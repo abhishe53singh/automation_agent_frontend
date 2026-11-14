@@ -4,8 +4,9 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
-import { Menu, MessageSquarePlus, Send, Sparkles } from "lucide-react";
+import { Menu, MessageSquarePlus, Paperclip, Send, Sparkles } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import { ChatFilesPanel } from "@/modules/chat/components/ChatFilesPanel";
 import { Composer } from "@/modules/chat/components/Composer";
@@ -13,6 +14,10 @@ import { Conversation } from "@/modules/chat/components/Conversation";
 import { ModelSetEditor } from "@/modules/chat/components/ModelSetEditor";
 import { SessionSidebar } from "@/modules/chat/components/SessionSidebar";
 import { AgentPicker } from "@/modules/chat/components/AgentPicker";
+import { ModelMultiSelect } from "@/modules/chat/components/ModelMultiSelect";
+import { AttachmentChips } from "@/modules/chat/components/Attachments";
+import { useDraftAttachments } from "@/modules/chat/use-draft-attachments";
+import { cn } from "@/shared/lib/cn";
 import { useChatTools, useSession, useTurns } from "@/modules/chat/hooks";
 import {
   sendableToolNames,
@@ -23,15 +28,18 @@ import {
 } from "@/modules/chat/agent-selection";
 import { useAgents } from "@/modules/agents/hooks";
 import { useTurnStream } from "@/modules/chat/use-turn-stream";
+import { trackTurn } from "@/modules/chat/background-turns";
 import {
   chatKeys,
   createSession as createSessionApi,
   createTurn as createTurnApi,
+  deleteSession as deleteSessionApi,
+  uploadAttachments as uploadAttachmentsApi,
 } from "@/modules/chat/api";
 import { sessionLabel, type ChatSession, type ChatTurn } from "@/modules/chat/schemas";
 import { useModels } from "@/modules/llm/hooks";
 import { deriveTitle } from "@/modules/chat/derive-title";
-import { Button, Drawer, EmptyState, Select, Textarea } from "@/shared/ui";
+import { Button, Drawer, EmptyState, Textarea } from "@/shared/ui";
 import { PanelSkeleton } from "@/shared/ui/AsyncBoundary";
 import { isApiError } from "@/shared/lib/api";
 
@@ -175,7 +183,8 @@ function EmptyWorkspace({
   const [content, setContent] = React.useState("");
   const [error, setError] = React.useState<string | undefined>();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [modelOverride, setModelOverride] = React.useState("");
+  /** Models for the first message: null = all active models. */
+  const [modelSelection, setModelSelection] = React.useState<string[] | null>(null);
 
   const { data: modelsList, isPending: modelsPending } = useModels();
   const queryClient = useQueryClient();
@@ -188,7 +197,24 @@ function EmptyWorkspace({
   const tools = useChatTools(projectId);
   const [toolIds, setToolIds] = useSessionToolSelection(draftKey, tools.data);
 
-  const activeModels = (modelsList ?? []).filter((m) => m.is_active);
+  // Files/images for the first message: kept locally until Send creates the
+  // chat, then uploaded into it (private to that chat).
+  const draft = useDraftAttachments();
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [dragOver, setDragOver] = React.useState(false);
+  const [uploadingCount, setUploadingCount] = React.useState(0);
+  const openFileDialog = () => fileInputRef.current?.click();
+
+  // Only models selectable for NEW chats (active model AND active provider).
+  const activeModels = React.useMemo(
+    () => (modelsList ?? []).filter((m) => m.selectable),
+    [modelsList],
+  );
+  const activeModelIds = React.useMemo(() => activeModels.map((m) => m.id), [activeModels]);
+  const modelOptions = React.useMemo(
+    () => activeModels.map((m) => ({ id: m.id, label: m.display_name?.trim() || m.name })),
+    [activeModels],
+  );
 
   // Suggested prompts
   const suggestions = [
@@ -207,29 +233,16 @@ function EmptyWorkspace({
       return;
     }
 
-    // Determine model IDs:
-    // 1. Model override if chosen
-    // 2. Or last-used from localStorage
-    // 3. Or all active models
-    let chosenModelIds: string[] = [];
-    if (modelOverride) {
-      chosenModelIds = [modelOverride];
-    } else {
-      try {
-        const stored = localStorage.getItem("aa:chat:models");
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const valid = parsed.filter((id) => activeModels.some((m) => m.id === id));
-            if (valid.length > 0) chosenModelIds = valid;
-          }
-        }
-      } catch {
-        // Ignore JSON error
-      }
-      if (chosenModelIds.length === 0) {
-        chosenModelIds = activeModels.map((m) => m.id);
-      }
+    // The picker is the only source of truth: the ticked models, or every
+    // active model for "All active models (N)". Ids of models that went
+    // inactive since they were ticked are dropped.
+    const chosenModelIds =
+      modelSelection === null
+        ? activeModelIds
+        : modelSelection.filter((id) => activeModelIds.includes(id));
+    if (chosenModelIds.length === 0) {
+      setError("Pick at least one model.");
+      return;
     }
 
     setIsSubmitting(true);
@@ -242,11 +255,30 @@ function EmptyWorkspace({
         model_ids: chosenModelIds,
       });
 
-      // Save to last-used
-      try {
-        localStorage.setItem("aa:chat:models", JSON.stringify(chosenModelIds));
-      } catch {
-        // Ignore
+      // 2. Upload the picked files into the new chat (parse + embed happens
+      //    here, so documents are searchable for the very first answer).
+      let attachmentIds: string[] = [];
+      if (draft.files.length > 0) {
+        setUploadingCount(draft.files.length);
+        let rows;
+        try {
+          rows = await uploadAttachmentsApi(newSession.id, draft.files);
+        } catch (uploadError: unknown) {
+          // Nothing was sent yet: remove the empty chat and keep the draft
+          // (text + files) so Send can simply be pressed again.
+          await deleteSessionApi(newSession.id).catch(() => {});
+          throw new Error(
+            isApiError(uploadError)
+              ? `Could not upload the files: ${uploadError.message}`
+              : "Could not upload the files. Please try again.",
+          );
+        } finally {
+          setUploadingCount(0);
+        }
+        attachmentIds = rows.filter((row) => row.status === "ready").map((row) => row.id);
+        for (const row of rows.filter((r) => r.status !== "ready")) {
+          toast.error(`“${row.filename}” was not attached: ${row.error ?? "could not be processed"}`);
+        }
       }
 
       // The picks become this chat's sticky selection; the next new chat
@@ -254,14 +286,18 @@ function EmptyWorkspace({
       writeToolSelection(newSession.id, toolIds);
       writeAgentSelection(newSession.id, agentIds);
 
-      // 2. Submit the turn
+      // 3. Submit the turn
       const toolNames = sendableToolNames(toolIds, tools.data);
       const turn = await createTurnApi(newSession.id, {
         content: query,
         model_ids: chosenModelIds,
         agent_ids: agentIds.length > 0 ? agentIds : undefined,
         tool_names: toolNames.length > 0 ? toolNames : undefined,
+        attachment_ids: attachmentIds.length > 0 ? attachmentIds : undefined,
       });
+      draft.clear();
+      // Keep watching it app-wide: the user may leave before it finishes.
+      trackTurn({ turnId: turn.id, sessionId: newSession.id, prompt: query });
       setToolIds([]);
       setAgentIds([]);
 
@@ -352,7 +388,42 @@ function EmptyWorkspace({
 
       {/* Composer at bottom */}
       <div className="border-t border-border p-4">
-        <form onSubmit={handleFirstSend} className="space-y-2">
+        <form
+          onSubmit={handleFirstSend}
+          className={cn(
+            "space-y-2",
+            dragOver && "rounded-md outline-2 outline-dashed outline-primary outline-offset-4",
+          )}
+          onDragOver={(event) => {
+            if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "copy";
+            if (!dragOver) setDragOver(true);
+          }}
+          onDragLeave={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragOver(false);
+          }}
+          onDrop={(event) => {
+            if (event.dataTransfer.files.length === 0) return;
+            event.preventDefault();
+            setDragOver(false);
+            if (!isSubmitting) draft.addFiles(Array.from(event.dataTransfer.files));
+          }}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept={draft.accept}
+            className="sr-only"
+            tabIndex={-1}
+            aria-label="Attach files"
+            onChange={(event) => {
+              draft.addFiles(Array.from(event.target.files ?? []));
+              event.target.value = "";
+            }}
+          />
+          <AttachmentChips items={draft.items} onRemove={draft.remove} disabled={isSubmitting} />
           <Textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
@@ -365,6 +436,13 @@ function EmptyWorkspace({
                 : "No models available"
             }
             aria-label="New chat message"
+            onPaste={(event) => {
+              const files = Array.from(event.clipboardData?.files ?? []);
+              if (files.length === 0) return;
+              // Pasted screenshots/files attach; plain text pastes normally.
+              event.preventDefault();
+              draft.addFiles(files);
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
@@ -378,24 +456,39 @@ function EmptyWorkspace({
               {error}
             </p>
           ) : null}
+          {uploadingCount > 0 ? (
+            <p role="status" className="text-xs text-muted-foreground">
+              Uploading {uploadingCount} file{uploadingCount === 1 ? "" : "s"} and reading them…
+            </p>
+          ) : null}
 
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
-              <Select
-                aria-label="Model choice"
-                value={modelOverride}
-                className="h-8 w-44 text-xs"
+              <ModelMultiSelect
+                options={modelOptions}
+                allIds={activeModelIds}
+                value={modelSelection}
+                onChange={(next) => {
+                  setModelSelection(next);
+                  setError(undefined);
+                }}
+                allLabel="All active models"
                 disabled={activeModels.length === 0 || isSubmitting}
-                onChange={(e) => setModelOverride(e.target.value)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                aria-label="Attach files"
+                title="Attach files or images (only this chat uses them)"
+                onClick={openFileDialog}
+                disabled={isSubmitting}
               >
-                <option value="">All active models ({activeModels.length})</option>
-                {activeModels.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.display_name?.trim() || m.name}
-                  </option>
-                ))}
-              </Select>
+                <Paperclip aria-hidden />
+              </Button>
               <AgentPicker
+                onAttachFiles={openFileDialog}
                 agents={agents.data}
                 isPending={agents.isPending}
                 error={agents.error}
@@ -553,7 +646,6 @@ function OpenChat({
           branchFrom={branchFrom}
           onCancelBranch={() => setBranchFrom(null)}
           streamState={stream.state}
-          onStopStream={stream.stop}
           onSubmitted={(turn) => {
             followTurn(turn.id);
             setBranchFrom(null);

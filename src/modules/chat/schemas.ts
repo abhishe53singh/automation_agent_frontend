@@ -65,6 +65,22 @@ export type LlmResponseStatus = z.infer<typeof llmResponseStatusSchema>;
 export const isFinalStatus = (status: LlmResponseStatus): boolean =>
   status === "completed" || status === "failed";
 
+/** A file the assistant generated for an answer (`generate_file` tool). */
+export const generatedFileSchema = z.object({
+  id: z.string().uuid(),
+  filename: z.string(),
+  format: z.string().nullable().optional(),
+  mime_type: z.string().nullable().optional(),
+  size_bytes: z.number().int(),
+  status: z.enum(["ready", "failed"]),
+  error: z.string().nullable().optional(),
+  title: z.string().nullable().optional(),
+  created_at: z.string(),
+  /** Backend path; the UI downloads through the same-origin BFF instead. */
+  download_url: z.string().nullable().optional(),
+});
+export type GeneratedFile = z.infer<typeof generatedFileSchema>;
+
 export const llmResponseSchema = z.object({
   id: z.string().uuid(),
   message_id: z.string().uuid(),
@@ -84,6 +100,8 @@ export const llmResponseSchema = z.object({
   completed_at: z.string().nullable(),
   /** Actions this answer's tool calls requested (approve/reject on the card). */
   tool_approvals: z.array(toolApprovalSchema).default([]),
+  /** Files this answer generated, shown as download cards under the text. */
+  attachments: z.array(generatedFileSchema).default([]),
 });
 export type LlmResponse = z.infer<typeof llmResponseSchema>;
 

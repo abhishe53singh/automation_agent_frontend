@@ -1,0 +1,34 @@
+/* Small motion utilities (no colours here - those live in theme.css). */
+
+/* Tooltip bubble: a quick fade + nudge away from the trigger. */
+@keyframes tooltip-pop-right {
+  from { opacity: 0; transform: translateX(-4px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes tooltip-pop-left {
+  from { opacity: 0; transform: translateX(4px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes tooltip-pop-top {
+  from { opacity: 0; transform: translateY(4px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes tooltip-pop-bottom {
+  from { opacity: 0; transform: translateY(-4px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+
+.tooltip-bubble { transform-origin: var(--radix-tooltip-content-transform-origin); }
+.tooltip-bubble[data-side="right"]  { animation: tooltip-pop-right 140ms ease-out; }
+.tooltip-bubble[data-side="left"]   { animation: tooltip-pop-left 140ms ease-out; }
+.tooltip-bubble[data-side="top"]    { animation: tooltip-pop-top 140ms ease-out; }
+.tooltip-bubble[data-side="bottom"] { animation: tooltip-pop-bottom 140ms ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tooltip-bubble { animation: none !important; }
+}
+
+/* Sidebar collapse: width animates; nothing else should. */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-column { transition: none !important; }
+}

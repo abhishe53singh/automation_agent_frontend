@@ -11,6 +11,7 @@ export const connectionSchema = z.object({
   created_at: z.string(),
   updated_at: z.string(),
   access_token_fingerprint: z.string().nullable().optional(),
+  account_email: z.string().nullable().optional(),
 });
 export type ProviderConnection = z.infer<typeof connectionSchema>;
 

@@ -8,6 +8,7 @@ import { isMockMode } from "@/config/env";
 import { isApiError } from "@/shared/lib/api";
 
 import { mockChat } from "./mock-api";
+import { trackTurn } from "./background-turns";
 
 import {
   chatKeys,
@@ -297,6 +298,8 @@ export function useRetryResponse(sessionId: string) {
   return useMutation({
     mutationFn: ({ turnId, responseId }: { turnId: string; responseId: string }) =>
       retryTurnResponses(sessionId, turnId, [responseId]),
+    // Announce the retry's outcome even if the user leaves the chat.
+    onSuccess: (turn) => trackTurn({ turnId: turn.id, sessionId }),
     onSettled: () => invalidateChat(queryClient, "session", sessionId),
     onError: (error) => toast.error(messageFor(error, "Retry failed.")),
   });
@@ -314,7 +317,9 @@ export function useSubmitTurn(sessionId: string) {
   return useMutation({
     mutationFn: (input: TurnCreate) =>
       isMockMode() ? mockChat.createTurn(sessionId, input) : createTurn(sessionId, input),
-    onSuccess: (turn) => {
+    onSuccess: (turn, input) => {
+      // Keep watching it app-wide: the user may leave before it finishes.
+      trackTurn({ turnId: turn.id, sessionId, prompt: input.content });
       queryClient.setQueryData<unknown[]>(chatKeys.turns(sessionId), (previous) => {
         const list = Array.isArray(previous) ? previous : [];
         // A branched turn is a child of another turn, not a new top-level one.

@@ -27,6 +27,7 @@ export {
   TooltipTrigger,
   TooltipContent,
   TooltipProvider,
+  Hint,
 } from "./Tooltip";
 export { Switch, type SwitchProps } from "./Switch";
 export { Checkbox, type CheckboxProps } from "./Checkbox";
@@ -36,6 +37,7 @@ export {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuCheckboxItem,
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "./DropdownMenu";

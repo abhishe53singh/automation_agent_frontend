@@ -1,13 +1,28 @@
 "use client";
 
+import * as React from "react";
 import { KeyRound } from "lucide-react";
 
-import { useDeleteProvider, useProviders, useUpdateProvider } from "../hooks";
+import {
+  useBulkLifecycle,
+  usePurgeOne,
+  useDeleteProvider,
+  useProviderLifecycle,
+  useProviders,
+} from "../hooks";
 import { ProviderDialog } from "./ProviderDialog";
-import type { LlmProvider } from "../schemas";
+import {
+  BulkActionBar,
+  LifecycleActions,
+  LifecycleTabs,
+  SelectCheckbox,
+  emptyCopy,
+  PurgeDialog,
+  useRowSelection,
+} from "./RegistryLifecycle";
+import type { LlmProvider, RegistryStatus } from "../schemas";
 import {
   Badge,
-  Button,
   Card,
   CardContent,
   CardDescription,
@@ -16,11 +31,16 @@ import {
   Skeleton,
 } from "@/shared/ui";
 import { AsyncBoundary } from "@/shared/ui/AsyncBoundary";
-import { isApiError } from "@/shared/lib/api";
 
-/** Provider list (item 25). */
+/**
+ * Provider list (item 25) with Active / Archived / Deleted tabs and
+ * multi-select bulk actions.
+ *
+ * Archiving or deleting a provider makes all of its models unavailable for
+ * new chats without touching the model rows; restoring brings them back.
+ */
 export function ProviderList() {
-  const providers = useProviders();
+  const [tab, setTab] = React.useState<RegistryStatus>("active");
 
   return (
     <Card>
@@ -36,50 +56,96 @@ export function ProviderList() {
           <ProviderDialog />
         </div>
       </CardHeader>
-      <CardContent>
-        <AsyncBoundary
-          isPending={providers.isPending}
-          error={providers.error}
-          isEmpty={(providers.data ?? []).length === 0}
-          skeleton={
-            <div className="space-y-2">
-              {Array.from({ length: 2 }, (_, index) => (
-                <Skeleton key={index} className="h-14 w-full" />
-              ))}
-            </div>
-          }
-          onRetry={() => void providers.refetch()}
-          empty={
-            <p className="text-sm text-muted-foreground">
-              No providers yet. Add one to make its models selectable in chat.
-            </p>
-          }
-        >
-          <ul className="divide-y divide-border">
-            {(providers.data ?? []).map((provider) => (
-              <li key={provider.id} className="py-3">
-                <ProviderRow provider={provider} />
-              </li>
-            ))}
-          </ul>
-        </AsyncBoundary>
+      <CardContent className="space-y-4">
+        <LifecycleTabs value={tab} onChange={setTab} label="Provider status" />
+        {/* Keyed by tab: switching tabs starts with nothing selected. */}
+        <ProviderTab key={tab} status={tab} />
       </CardContent>
     </Card>
   );
 }
 
+function ProviderTab({ status }: { status: RegistryStatus }) {
+  const providers = useProviders(status);
+  const rows = React.useMemo(() => providers.data ?? [], [providers.data]);
+  const ids = React.useMemo(() => rows.map((row) => row.id), [rows]);
+  const selection = useRowSelection(ids);
+  const bulk = useBulkLifecycle("providers");
+
+  return (
+    <AsyncBoundary
+      isPending={providers.isPending}
+      error={providers.error}
+      isEmpty={rows.length === 0}
+      skeleton={
+        <div className="space-y-2">
+          {Array.from({ length: 2 }, (_, index) => (
+            <Skeleton key={index} className="h-14 w-full" />
+          ))}
+        </div>
+      }
+      onRetry={() => void providers.refetch()}
+      empty={<p className="text-sm text-muted-foreground">{emptyCopy("provider", status)}</p>}
+    >
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <SelectCheckbox
+            checked={selection.allSelected}
+            indeterminate={selection.someSelected}
+            onChange={selection.toggleAll}
+            label="Select all providers"
+          />
+          <span>Select all</span>
+        </div>
+        <BulkActionBar
+          kind="provider"
+          status={status}
+          ids={selection.selected}
+          count={selection.selected.length}
+          pending={bulk.isPending ? (bulk.variables?.action ?? null) : null}
+          onClear={selection.clear}
+          onAction={(action) =>
+            bulk.mutate({ ids: selection.selected, action }, { onSuccess: () => selection.clear() })
+          }
+        />
+        <ul className="divide-y divide-border">
+          {rows.map((provider) => (
+            <li key={provider.id} className="flex items-start gap-3 py-3">
+              <span className="pt-0.5">
+                <SelectCheckbox
+                  checked={selection.isSelected(provider.id)}
+                  onChange={() => selection.toggle(provider.id)}
+                  label={`Select ${provider.display_name?.trim() || provider.name}`}
+                />
+              </span>
+              <div className="min-w-0 flex-1">
+                <ProviderRow provider={provider} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </AsyncBoundary>
+  );
+}
+
 function ProviderRow({ provider }: { provider: LlmProvider }) {
-  const update = useUpdateProvider(provider.id);
+  const lifecycle = useProviderLifecycle();
   const remove = useDeleteProvider();
-  // A 409 means the provider's models are referenced by chat history (RESTRICT
-  // FK) — an expected outcome with its own message, not a generic failure.
-  const conflict = isApiError(remove.error) && remove.error.code === "conflict";
+  const purge = usePurgeOne("providers");
+  const [purgeOpen, setPurgeOpen] = React.useState(false);
+  const name = provider.display_name?.trim() || provider.name;
+  const pending = remove.isPending
+    ? "delete"
+    : lifecycle.isPending
+      ? (lifecycle.variables?.action ?? null)
+      : null;
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="min-w-0">
         <p className="text-sm font-medium text-foreground">
-          {provider.display_name?.trim() || provider.name}
+          {name}
           {provider.display_name ? (
             <span className="ml-2 text-xs font-normal text-muted-foreground">{provider.name}</span>
           ) : null}
@@ -99,33 +165,32 @@ function ProviderRow({ provider }: { provider: LlmProvider }) {
           {provider.api_key_env ? ` · env: ${provider.api_key_env}` : ""}
           {provider.has_api_key ? "" : " · no key configured"}
         </p>
-        {conflict ? (
-          <p role="alert" className="text-xs text-destructive">
-            {remove.error instanceof Error ? remove.error.message : "In use by chat history."}
+        {provider.status !== "active" ? (
+          <p className="text-xs text-muted-foreground">
+            Its models are unavailable for new chats while it is {provider.status}.
           </p>
         ) : null}
       </div>
 
-      <div className="flex items-center gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          loading={update.isPending}
-          onClick={() => update.mutate({ is_active: !provider.is_active })}
-        >
-          {provider.is_active ? "Deactivate" : "Activate"}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          loading={remove.isPending}
-          onClick={() => remove.mutate(provider.id)}
-        >
-          Delete
-        </Button>
-      </div>
+      <LifecycleActions
+        kind="provider"
+        name={name}
+        status={provider.status}
+        pending={pending}
+        onArchive={() => lifecycle.mutate({ id: provider.id, action: "archive" })}
+        onRestore={() => lifecycle.mutate({ id: provider.id, action: "restore" })}
+        onDelete={() => remove.mutate(provider.id)}
+        onPurge={() => setPurgeOpen(true)}
+      />
+      <PurgeDialog
+        open={purgeOpen}
+        onClose={() => setPurgeOpen(false)}
+        kind="provider"
+        ids={[provider.id]}
+        label={name}
+        pending={purge.isPending}
+        onConfirm={() => purge.mutate(provider.id, { onSuccess: () => setPurgeOpen(false) })}
+      />
     </div>
   );
 }

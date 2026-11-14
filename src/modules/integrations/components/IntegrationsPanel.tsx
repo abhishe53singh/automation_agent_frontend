@@ -91,6 +91,15 @@ export function IntegrationsPanel({ projectId }: { projectId?: string }) {
               </div>
             ) : googleConnection ? (
               <div className="space-y-3 rounded-lg border border-border p-3 text-sm">
+                <div className="flex justify-between gap-3">
+                  <span className="text-muted-foreground shrink-0">Google account:</span>
+                  <span
+                    className="truncate font-medium"
+                    title={googleConnection.account_email ?? undefined}
+                  >
+                    {googleConnection.account_email ?? "Unknown (reconnect to detect)"}
+                  </span>
+                </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Fingerprint:</span>
                   <span className="font-mono text-xs">

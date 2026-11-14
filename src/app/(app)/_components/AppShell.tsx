@@ -2,10 +2,48 @@
 
 import * as React from "react";
 
+import { BackgroundTurnWatcher } from "@/modules/chat/components/BackgroundTurnWatcher";
 import { Button } from "@/shared/ui/Button";
+
+import { cn } from "@/shared/lib/cn";
 
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
+
+/* Desktop sidebar collapsed/expanded, remembered per browser. Read through
+ * useSyncExternalStore so the server render (expanded) never mismatches and
+ * other tabs follow along. */
+const COLLAPSED_KEY = "aa:sidebar:collapsed";
+const COLLAPSED_EVENT = "aa:sidebar-collapsed-changed";
+
+function readCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(COLLAPSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function subscribeCollapsed(onChange: () => void): () => void {
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === COLLAPSED_KEY) onChange();
+  };
+  window.addEventListener(COLLAPSED_EVENT, onChange);
+  window.addEventListener("storage", onStorage);
+  return () => {
+    window.removeEventListener(COLLAPSED_EVENT, onChange);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
+function writeCollapsed(value: boolean): void {
+  try {
+    window.localStorage.setItem(COLLAPSED_KEY, value ? "1" : "0");
+  } catch {
+    // Storage unavailable: the toggle still works for this page view.
+  }
+  window.dispatchEvent(new Event(COLLAPSED_EVENT));
+}
 
 /**
  * Responsive application shell (phase_1.txt item 6).
@@ -15,6 +53,15 @@ import { Topbar } from "./Topbar";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const closeMenu = React.useCallback(() => setMenuOpen(false), []);
+  const storedCollapsed = React.useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false);
+  // Fallback when storage is unavailable (the write cannot be read back).
+  const [localCollapsed, setLocalCollapsed] = React.useState<boolean | null>(null);
+  const collapsed = localCollapsed ?? storedCollapsed;
+  const toggleCollapsed = React.useCallback(() => {
+    const next = !collapsed;
+    writeCollapsed(next);
+    setLocalCollapsed(readCollapsed() === next ? null : next);
+  }, [collapsed]);
 
   // Close the drawer when the viewport grows past the lg breakpoint, otherwise
   // it would stay stuck open behind the desktop layout.
@@ -40,10 +87,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
+      {/* Announces prompts that finish while the user is elsewhere. */}
+      <BackgroundTurnWatcher />
       {/* Desktop sidebar */}
-      <aside className="hidden w-64 shrink-0 border-r border-border bg-card lg:block">
+      <aside
+        className={cn(
+          "sidebar-column hidden shrink-0 border-r border-border bg-card transition-[width] duration-200 ease-out lg:block",
+          collapsed ? "w-16" : "w-64",
+        )}
+      >
         <div className="sticky top-0 h-screen">
-          <Sidebar />
+          <Sidebar collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
         </div>
       </aside>
 

@@ -48,6 +48,9 @@ function model(
     context_window: contextWindow,
     max_output_tokens: 4096,
     is_active: true,
+    status: "active",
+    effective_status: "active",
+    selectable: true,
     created_at: now(),
     updated_at: now(),
   };
@@ -60,6 +63,9 @@ export const FIXTURE_MODELS: LlmModel[] = [
   model("fixture-off", "Fixture Inactive", 1, 2, 8000),
 ];
 FIXTURE_MODELS[2].is_active = false;
+FIXTURE_MODELS[2].status = "archived";
+FIXTURE_MODELS[2].effective_status = "archived";
+FIXTURE_MODELS[2].selectable = false;
 
 const FAST = FIXTURE_MODELS[0];
 const DEEP = FIXTURE_MODELS[1];
@@ -138,6 +144,7 @@ export function newResponse(modelRow: LlmModel, messageId: string): LlmResponse 
     created_at: now(),
     completed_at: null,
     tool_approvals: [],
+    attachments: [],
   };
 }
 

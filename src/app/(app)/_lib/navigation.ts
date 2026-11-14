@@ -29,8 +29,15 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/integrations", label: "Integrations", icon: Plug, phase: null },
   { href: "/agents", label: "Agents", icon: Bot, phase: null },
   { href: "/workflows", label: "Workflows", icon: GitFork, phase: null },
-  { href: "/settings", label: "Settings", icon: Settings, phase: null },
 ] as const;
+
+/** Settings lives in the sidebar footer's profile menu, next to theme and sign out. */
+export const SETTINGS_ITEM: NavItem = {
+  href: "/settings",
+  label: "Settings",
+  icon: Settings,
+  phase: null,
+};
 
 
 /** Brand mark + wordmark shown at the top of the sidebar. */

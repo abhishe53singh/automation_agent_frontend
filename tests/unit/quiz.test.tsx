@@ -149,7 +149,6 @@ describe("slash command hint", () => {
         branchFrom={null}
         onCancelBranch={() => {}}
         streamState="idle"
-        onStopStream={() => {}}
       />,
     );
     const box = screen.getByLabelText("Message") as HTMLTextAreaElement;

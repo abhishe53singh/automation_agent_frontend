@@ -22,13 +22,16 @@ import { Badge, Button, Dialog, Skeleton } from "@/shared/ui";
 export function ModelSetEditor({ session }: { session: ChatSession }) {
   const [open, setOpen] = React.useState(false);
   const attachedIds = new Set(session.models.map((model) => model.model_id));
-  const enabledCount = session.models.filter((model) => model.is_enabled).length;
+  // Deleted models stay attached (so old answers keep their label) but are
+  // never shown or counted as selectable.
+  const usable = session.models.filter((model) => model.model?.effective_status !== "deleted");
+  const enabledCount = usable.filter((model) => model.is_enabled).length;
 
   return (
     <>
       <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
         <Settings2 aria-hidden />
-        Models ({enabledCount}/{session.models.length})
+        Models ({enabledCount}/{usable.length})
       </Button>
 
       <Dialog
@@ -59,8 +62,18 @@ function ModelSetForm({
   const save = useSetSessionModels(session.id);
   const toggle = useToggleSessionModel(session.id);
 
+  /** Attached-but-deleted models: kept on save, never shown. */
+  const deletedAttached = React.useMemo(
+    () =>
+      session.models
+        .filter((model) => model.model?.effective_status === "deleted")
+        .map((model) => model.model_id),
+    [session.models],
+  );
   const [draft, setDraft] = React.useState<string[]>(() =>
-    session.models.map((model) => model.model_id),
+    session.models
+      .filter((model) => model.model?.effective_status !== "deleted")
+      .map((model) => model.model_id),
   );
 
   // No re-seeding effect: the parent keys this component on `updated_at`, so a
@@ -68,8 +81,14 @@ function ModelSetForm({
   // props (react-hooks/set-state-in-effect).
 
   const registry = models.data ?? [];
-  const available = registry.filter((model) => model.is_active);
-  const dirty = draft.length !== attachedIds.size || draft.some((id) => !attachedIds.has(id));
+  // Selectable models, plus archived ones this chat already has (archiving
+  // never breaks an existing chat). Deleted ones are never offered.
+  const available = registry.filter(
+    (model) =>
+      model.selectable || (model.effective_status === "archived" && attachedIds.has(model.id)),
+  );
+  const visibleAttached = attachedIds.size - deletedAttached.length;
+  const dirty = draft.length !== visibleAttached || draft.some((id) => !attachedIds.has(id));
 
   if (models.isPending) {
     return (
@@ -116,6 +135,7 @@ function ModelSetForm({
                 <span className="truncate text-sm text-foreground">
                   {model.display_name?.trim() || model.name}
                 </span>
+                {model.selectable ? null : <Badge variant="warning">archived</Badge>}
               </span>
               <Badge variant="neutral">${model.input_cost_per_million.toFixed(2)}/1M in</Badge>
             </label>
@@ -134,7 +154,7 @@ function ModelSetForm({
           variant="outline"
           disabled={!dirty || save.isPending}
           loading={save.isPending}
-          onClick={() => save.mutate(draft)}
+          onClick={() => save.mutate([...draft, ...deletedAttached])}
         >
           Save model set
         </Button>
@@ -159,27 +179,29 @@ function EnabledList({
   return (
     <fieldset className="space-y-1 border-t border-border pt-3">
       <legend className="mb-1 text-sm font-medium text-foreground">Enabled for new rounds</legend>
-      {session.models.map((attached) => (
-        <label
-          key={attached.model_id}
-          className="flex cursor-pointer items-center justify-between gap-3 rounded-md px-3 py-2 hover:bg-accent/50"
-        >
-          <span className="truncate text-sm text-foreground">
-            {attached.model?.display_name?.trim() || attached.model?.name || "Model"}
-          </span>
-          <span className="flex items-center gap-2">
-            {attached.is_enabled ? null : <Badge variant="warning">muted</Badge>}
-            <input
-              type="checkbox"
-              checked={attached.is_enabled}
-              disabled={pending}
-              onChange={(event) =>
-                onToggle({ modelId: attached.model_id, enabled: event.target.checked })
-              }
-            />
-          </span>
-        </label>
-      ))}
+      {session.models
+        .filter((attached) => attached.model?.effective_status !== "deleted")
+        .map((attached) => (
+          <label
+            key={attached.model_id}
+            className="flex cursor-pointer items-center justify-between gap-3 rounded-md px-3 py-2 hover:bg-accent/50"
+          >
+            <span className="truncate text-sm text-foreground">
+              {attached.model?.display_name?.trim() || attached.model?.name || "Model"}
+            </span>
+            <span className="flex items-center gap-2">
+              {attached.is_enabled ? null : <Badge variant="warning">muted</Badge>}
+              <input
+                type="checkbox"
+                checked={attached.is_enabled}
+                disabled={pending}
+                onChange={(event) =>
+                  onToggle({ modelId: attached.model_id, enabled: event.target.checked })
+                }
+              />
+            </span>
+          </label>
+        ))}
     </fieldset>
   );
 }
