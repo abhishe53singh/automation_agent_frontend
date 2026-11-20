@@ -183,8 +183,15 @@ function EmptyWorkspace({
   const [content, setContent] = React.useState("");
   const [error, setError] = React.useState<string | undefined>();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  /** Models for the first message: null = all active models. */
-  const [modelSelection, setModelSelection] = React.useState<string[] | null>(null);
+  /**
+   * Models for the first message: null = all active models, undefined = not
+   * touched yet, which means only the FIRST active model. Every model can
+   * still be ticked; the default just never fans one prompt out to all of
+   * them by accident.
+   */
+  const [pickedModels, setModelSelection] = React.useState<string[] | null | undefined>(
+    undefined,
+  );
 
   const { data: modelsList, isPending: modelsPending } = useModels();
   const queryClient = useQueryClient();
@@ -211,6 +218,14 @@ function EmptyWorkspace({
     [modelsList],
   );
   const activeModelIds = React.useMemo(() => activeModels.map((m) => m.id), [activeModels]);
+  // With a single active model "first only" equals "all": keep it as null so
+  // the picker reads "All active models" rather than a one-item list.
+  const modelSelection =
+    pickedModels !== undefined
+      ? pickedModels
+      : activeModelIds.length > 1
+        ? activeModelIds.slice(0, 1)
+        : null;
   const modelOptions = React.useMemo(
     () => activeModels.map((m) => ({ id: m.id, label: m.display_name?.trim() || m.name })),
     [activeModels],

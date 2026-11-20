@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { framePolicyForKey } from "@/server/embed-frame-policy";
+import { framePolicyForCaptchaKey, framePolicyForKey } from "@/server/embed-frame-policy";
+import { captchaPageKey, isPublicCaptchaPath } from "@/shared/lib/captcha";
 import { embedPageKey, isPublicEmbedPath } from "@/shared/lib/embed-widget";
 
 /**
@@ -44,6 +45,25 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
       response.headers.set(
         "Content-Security-Policy",
         key ? await framePolicyForKey(key) : "frame-ancestors 'none'",
+      );
+    }
+    return response;
+  }
+
+  // The embeddable captcha (loader script + iframe page; its BFF lives under
+  // /api/public above). Framing is limited to the site's allowed websites;
+  // the first-party key "app" may only be framed by this app itself.
+  if (isPublicCaptchaPath(pathname)) {
+    const response = NextResponse.next();
+    if (pathname.startsWith("/captcha/")) {
+      const key = captchaPageKey(pathname);
+      response.headers.set(
+        "Content-Security-Policy",
+        !key
+          ? "frame-ancestors 'none'"
+          : key === "app"
+            ? "frame-ancestors 'self'"
+            : await framePolicyForCaptchaKey(key),
       );
     }
     return response;

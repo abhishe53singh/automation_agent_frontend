@@ -8,7 +8,15 @@ export { Input, type InputProps } from "./Input";
 
 export { Spinner, SpinnerBlock, type SpinnerProps } from "./Spinner";
 export { Skeleton, SkeletonText, type SkeletonProps } from "./Skeleton";
-export { Dialog, type DialogProps } from "./Dialog";
+export {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  type DialogProps,
+} from "./Dialog";
 export { Select, type SelectProps } from "./Select";
 export {
   AsyncBoundary,

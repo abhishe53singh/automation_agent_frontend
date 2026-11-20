@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { Globe } from "lucide-react";
+import { Globe, ShieldCheck } from "lucide-react";
 import {
   Breadcrumbs,
   Button,
@@ -53,6 +53,26 @@ export default function IntegrationsPage() {
             </div>
             <Button asChild variant="outline" size="sm">
               <Link href="/projects">Go to projects</Link>
+            </Button>
+          </div>
+        </CardHeader>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <ShieldCheck className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
+              <div className="space-y-1">
+                <CardTitle>Captcha for your websites</CardTitle>
+                <CardDescription>
+                  Self-hosted distorted-text captcha. Get a site key and secret, paste one script
+                  tag into any website&apos;s form, and verify tokens from its server.
+                </CardDescription>
+              </div>
+            </div>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/integrations/captcha">Manage captcha</Link>
             </Button>
           </div>
         </CardHeader>

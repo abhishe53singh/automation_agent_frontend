@@ -30,9 +30,9 @@ export function clearFramePolicyCache(): void {
  * inactive or the config is unreadable. Transport failures throw so they are
  * not cached.
  */
-async function fetchAllowedOrigins(publicKey: string): Promise<string[] | null> {
+async function fetchAllowedOrigins(configPath: string): Promise<string[] | null> {
   const base = getServerEnv().API_BASE_URL.replace(/\/+$/, "");
-  const response = await fetch(`${base}/public/embed/${encodeURIComponent(publicKey)}/config`, {
+  const response = await fetch(`${base}${configPath}`, {
     headers: { Accept: "application/json" },
     cache: "no-store",
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
@@ -45,19 +45,29 @@ async function fetchAllowedOrigins(publicKey: string): Promise<string[] | null> 
   return origins.filter((value): value is string => typeof value === "string");
 }
 
-export async function framePolicyForKey(publicKey: string, now = Date.now()): Promise<string> {
-  const hit = cache.get(publicKey);
+async function cachedPolicy(configPath: string, now: number): Promise<string> {
+  const hit = cache.get(configPath);
   if (hit && hit.expiresAt > now) return hit.policy;
 
   let policy: string;
   try {
-    policy = buildFrameAncestors(await fetchAllowedOrigins(publicKey));
+    policy = buildFrameAncestors(await fetchAllowedOrigins(configPath));
   } catch {
     // Backend unreachable: fail closed, but do not cache the outage.
     return buildFrameAncestors(null);
   }
 
   if (cache.size >= MAX_ENTRIES) cache.clear();
-  cache.set(publicKey, { policy, expiresAt: now + CACHE_TTL_MS });
+  cache.set(configPath, { policy, expiresAt: now + CACHE_TTL_MS });
   return policy;
+}
+
+/** `/embed/{publicKey}` (chat widget). */
+export function framePolicyForKey(publicKey: string, now = Date.now()): Promise<string> {
+  return cachedPolicy(`/public/embed/${encodeURIComponent(publicKey)}/config`, now);
+}
+
+/** `/captcha/{siteKey}` (captcha iframe): the captcha site's allowed websites. */
+export function framePolicyForCaptchaKey(siteKey: string, now = Date.now()): Promise<string> {
+  return cachedPolicy(`/public/captcha/${encodeURIComponent(siteKey)}/config`, now);
 }

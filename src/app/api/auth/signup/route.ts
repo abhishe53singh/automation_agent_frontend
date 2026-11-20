@@ -11,7 +11,7 @@ import { badRequest, toErrorResponse } from "@/server/errors";
 export async function POST(request: Request): Promise<NextResponse> {
   try {
     const body: unknown = await request.json();
-    const { username, email, password } = (body ?? {}) as Record<string, unknown>;
+    const { username, email, password, captcha_token } = (body ?? {}) as Record<string, unknown>;
 
     if (typeof username !== "string" || !username.trim()) {
       throw badRequest("Username is required.");
@@ -25,9 +25,14 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const credentials = { username: username.trim(), email: email.trim(), password };
 
-    // Create the account. Upstream 400 = username/email already taken; the
-    // server errors helper already maps that to error.validation.
-    const user = await requestAuthJson("/auth/signup", credentials);
+    // Create the account. Upstream 400 = captcha missing/expired or
+    // username/email already taken; the server errors helper maps that to
+    // error.validation. The captcha token (self-hosted, single use) is
+    // verified by the backend before anything else.
+    const user = await requestAuthJson("/auth/signup", {
+      ...credentials,
+      captcha_token: typeof captcha_token === "string" ? captcha_token.slice(0, 200) : undefined,
+    });
 
     // Then establish the session (sets the httpOnly cookies).
     // NOTE: upstream `/auth/login` takes form-urlencoded, not JSON.

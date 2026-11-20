@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
+import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -10,6 +11,8 @@ import { useSignup } from "../hooks";
 import { registerSchema, type RegisterValues } from "../validation";
 import { AuthDivider, GoogleSignInButton } from "./GoogleSignInButton";
 import { getClientEnv } from "@/config/env";
+import { CaptchaWidget } from "@/modules/captcha/components/CaptchaWidget";
+import { FIRST_PARTY_CAPTCHA_KEY } from "@/shared/lib/captcha";
 import {
   Button,
   Card,
@@ -39,19 +42,33 @@ export function RegisterForm() {
     defaultValues: { username: "", email: "", password: "", confirmPassword: "" },
   });
 
+  // Self-hosted captcha pass token (single use). Any failed signup consumed
+  // it, so a new image is loaded via captchaReset.
+  const [captchaToken, setCaptchaToken] = React.useState<string | null>(null);
+  const [captchaReset, setCaptchaReset] = React.useState(0);
+  const [captchaError, setCaptchaError] = React.useState<string | null>(null);
+
   const onSubmit = handleSubmit(async (values) => {
+    if (!captchaToken) {
+      setCaptchaError("Please solve the captcha first.");
+      return;
+    }
     try {
       await signup.mutateAsync({
         username: values.username,
         email: values.email,
         password: values.password,
+        captcha_token: captchaToken,
       });
       toast.success("Account created. Welcome!");
       // Refresh so middleware sees the new cookies before the redirect.
       router.replace("/dashboard");
       router.refresh();
     } catch {
-      // Duplicate username/email arrives as error.validation — already toasted.
+      // Duplicate username/email or a captcha problem arrives as
+      // error.validation — already toasted. The token is spent either way.
+      setCaptchaToken(null);
+      setCaptchaReset((n) => n + 1);
     }
   });
 
@@ -96,6 +113,24 @@ export function RegisterForm() {
             disabled={isSubmitting}
             {...register("confirmPassword")}
           />
+          <div className="space-y-1.5">
+            <p className="text-sm font-medium text-foreground">Verify you are human</p>
+            <CaptchaWidget
+              siteKey={FIRST_PARTY_CAPTCHA_KEY}
+              resetKey={captchaReset}
+              disabled={isSubmitting}
+              onSolved={(token) => {
+                setCaptchaToken(token);
+                setCaptchaError(null);
+              }}
+              onExpired={() => setCaptchaToken(null)}
+            />
+            {captchaError && !captchaToken ? (
+              <p role="alert" className="text-xs text-destructive">
+                {captchaError}
+              </p>
+            ) : null}
+          </div>
         </CardContent>
 
         <CardFooter className="flex-col gap-3">

@@ -31,6 +31,8 @@ export interface SignupInput {
   username: string;
   email: string;
   password: string;
+  /** Pass token from the self-hosted captcha (site key "app"). */
+  captcha_token: string;
   signal?: AbortSignal;
 }
 

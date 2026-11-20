@@ -28,14 +28,19 @@ const nextConfig: NextConfig = {
     ];
     return [
       {
-        // Everything except the embeddable widget page is unframeable.
-        source: "/((?!embed/).*)",
+        // Everything except the embeddable widget and captcha pages is unframeable.
+        source: "/((?!embed/|captcha/).*)",
         headers: [...common, { key: "X-Frame-Options", value: "DENY" }],
       },
       {
         // /embed/{publicKey} is meant to be iframed by the widget's allowed
         // origins: src/proxy.ts sets a per-widget `frame-ancestors` CSP instead.
         source: "/embed/:path*",
+        headers: common,
+      },
+      {
+        // /captcha/{siteKey}: same, with the captcha site's allowed websites.
+        source: "/captcha/:path*",
         headers: common,
       },
     ];

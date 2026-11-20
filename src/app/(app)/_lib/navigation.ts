@@ -7,6 +7,7 @@ import {
   MessagesSquare,
   Plug,
   Settings,
+  Wrench,
 } from "lucide-react";
 import type { Route } from "next";
 
@@ -29,6 +30,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/integrations", label: "Integrations", icon: Plug, phase: null },
   { href: "/agents", label: "Agents", icon: Bot, phase: null },
   { href: "/workflows", label: "Workflows", icon: GitFork, phase: null },
+  { href: "/tools", label: "Tools", icon: Wrench, phase: null },
 ] as const;
 
 /** Settings lives in the sidebar footer's profile menu, next to theme and sign out. */
