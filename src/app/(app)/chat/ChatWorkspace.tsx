@@ -13,7 +13,7 @@ import { Composer } from "@/modules/chat/components/Composer";
 import { Conversation } from "@/modules/chat/components/Conversation";
 import { ModelSetEditor } from "@/modules/chat/components/ModelSetEditor";
 import { SessionSidebar } from "@/modules/chat/components/SessionSidebar";
-import { AgentPicker } from "@/modules/chat/components/AgentPicker";
+import { AgentPicker, PersonaChips } from "@/modules/chat/components/AgentPicker";
 import { ModelMultiSelect } from "@/modules/chat/components/ModelMultiSelect";
 import { AttachmentChips } from "@/modules/chat/components/Attachments";
 import { useDraftAttachments } from "@/modules/chat/use-draft-attachments";
@@ -21,12 +21,18 @@ import { cn } from "@/shared/lib/cn";
 import { useChatTools, useSession, useTurns } from "@/modules/chat/hooks";
 import {
   sendableToolNames,
+  CHARACTER_SELECTION_PREFIX,
+  STYLE_PROFILE_SELECTION_PREFIX,
   useSessionAgentSelection,
+  useSessionCharacterSelection,
+  useSessionStyleProfile,
   useSessionToolSelection,
   writeAgentSelection,
+  writeSelection,
   writeToolSelection,
 } from "@/modules/chat/agent-selection";
 import { useAgents } from "@/modules/agents/hooks";
+import { useCharacters, useStyleProfiles } from "@/modules/personas/hooks";
 import { useTurnStream } from "@/modules/chat/use-turn-stream";
 import { trackTurn } from "@/modules/chat/background-turns";
 import {
@@ -203,6 +209,10 @@ function EmptyWorkspace({
   const [agentIds, setAgentIds] = useSessionAgentSelection(draftKey, agents.data);
   const tools = useChatTools(projectId);
   const [toolIds, setToolIds] = useSessionToolSelection(draftKey, tools.data);
+  const characters = useCharacters();
+  const [characterIds, setCharacterIds] = useSessionCharacterSelection(draftKey, characters.data);
+  const styleProfiles = useStyleProfiles();
+  const [styleProfileId, setStyleProfileId] = useSessionStyleProfile(draftKey, styleProfiles.data);
 
   // Files/images for the first message: kept locally until Send creates the
   // chat, then uploaded into it (private to that chat).
@@ -300,6 +310,8 @@ function EmptyWorkspace({
       // starts clean (tools are opt-in).
       writeToolSelection(newSession.id, toolIds);
       writeAgentSelection(newSession.id, agentIds);
+      writeSelection(CHARACTER_SELECTION_PREFIX, newSession.id, characterIds);
+      writeSelection(STYLE_PROFILE_SELECTION_PREFIX, newSession.id, styleProfileId ? [styleProfileId] : []);
 
       // 3. Submit the turn
       const toolNames = sendableToolNames(toolIds, tools.data);
@@ -309,12 +321,16 @@ function EmptyWorkspace({
         agent_ids: agentIds.length > 0 ? agentIds : undefined,
         tool_names: toolNames.length > 0 ? toolNames : undefined,
         attachment_ids: attachmentIds.length > 0 ? attachmentIds : undefined,
+        character_ids: characterIds.length > 0 ? characterIds : undefined,
+        style_profile_id: styleProfileId ?? undefined,
       });
       draft.clear();
       // Keep watching it app-wide: the user may leave before it finishes.
       trackTurn({ turnId: turn.id, sessionId: newSession.id, prompt: query });
       setToolIds([]);
       setAgentIds([]);
+      setCharacterIds([]);
+      setStyleProfileId(null);
 
       // 3. Auto-title (interim client derivation per Item 76)
       const generatedTitle = deriveTitle(query);
@@ -438,6 +454,14 @@ function EmptyWorkspace({
               event.target.value = "";
             }}
           />
+          <PersonaChips
+            characterIds={characterIds}
+            characters={characters.data}
+            onRemoveCharacter={(id) => setCharacterIds(characterIds.filter((value) => value !== id))}
+            styleProfileId={styleProfileId}
+            styleProfiles={styleProfiles.data}
+            onRemoveStyleProfile={() => setStyleProfileId(null)}
+          />
           <AttachmentChips items={draft.items} onRemove={draft.remove} disabled={isSubmitting} />
           <Textarea
             value={content}
@@ -516,6 +540,12 @@ function EmptyWorkspace({
                 onRetryTools={() => void tools.refetch()}
                 selectedToolIds={toolIds}
                 onToolsChange={setToolIds}
+                characters={characters.data}
+                selectedCharacterIds={characterIds}
+                onCharactersChange={setCharacterIds}
+                styleProfiles={styleProfiles.data}
+                selectedStyleProfileId={styleProfileId}
+                onStyleProfileChange={setStyleProfileId}
                 disabled={isSubmitting}
               />
             </div>

@@ -154,16 +154,23 @@ export function ResponseCard({
           <span className="inline-block size-2 animate-ping rounded-full bg-primary" />
           <span>{liveNote ?? "Thinking…"}</span>
         </div>
-      ) : (
+      ) : (response.attachments ?? []).length > 0 ? null : (
         <p className="text-sm italic text-muted-foreground">The model returned an empty answer.</p>
       )}
 
       <GeneratedFiles
         files={response.attachments ?? []}
         sessionId={sessionId}
-        // The tool loop announces "Using generate_file…" while it runs.
+        // The tool loop announces "Using generate_file…" while it runs;
+        // image models announce "Generating image…".
         generating={
-          response.status === "pending" && Boolean(isStreaming && liveNote?.includes("generate_file"))
+          response.status === "pending" && isStreaming && liveNote
+            ? liveNote.startsWith("Generating image")
+              ? "image"
+              : liveNote.includes("generate_file")
+                ? "file"
+                : false
+            : false
         }
       />
 

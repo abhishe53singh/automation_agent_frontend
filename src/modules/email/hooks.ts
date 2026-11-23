@@ -112,6 +112,8 @@ import {
   listEmailLeads,
   createEmailLead,
   deleteEmailLead,
+  bulkUpdateEmailLeads,
+  type EmailLeadEdit,
   confirmLeadImport,
   createManualLeadsBatch,
   listCampaignLeads,
@@ -167,6 +169,21 @@ export function useCreateEmailLead() {
     },
     onError: (err: any) => {
       toast.error(err?.message || "Failed to add lead");
+    },
+  });
+}
+
+/** Save in-page spreadsheet edits; errors (bad/duplicate email) are shown by the caller. */
+export function useBulkUpdateEmailLeads() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (items: EmailLeadEdit[]) => bulkUpdateEmailLeads(items),
+    onSuccess: (rows) => {
+      queryClient.invalidateQueries({ queryKey: emailKeys.leads.all });
+      // Campaign recipient tables show the same contacts.
+      queryClient.invalidateQueries({ queryKey: emailKeys.campaigns.all });
+      toast.success(`Saved ${rows.length} contact${rows.length === 1 ? "" : "s"}`);
     },
   });
 }
@@ -431,6 +448,9 @@ import {
   getEmailCampaignKanban,
   getCampaignSteps,
   updateCampaignSteps,
+  previewAiStep,
+  getCampaignUsage,
+  getSentEmailsForLead,
 } from "./api";
 
 export function useEmailCampaigns() {
@@ -498,6 +518,41 @@ export function useCampaignSteps(campaignId: string) {
     queryKey: emailKeys.campaigns.steps(campaignId),
     queryFn: ({ signal }) => getCampaignSteps(campaignId, signal),
     enabled: Boolean(campaignId),
+  });
+}
+
+/** Emails sent to one lead of a campaign (only fetched while the popup is open). */
+export function useSentEmailsForLead(campaignId: string, sendId: string | null) {
+  return useQuery({
+    queryKey: [...emailKeys.campaigns.sends(campaignId), sendId, "emails"],
+    queryFn: ({ signal }) => getSentEmailsForLead(campaignId, sendId!, signal),
+    enabled: Boolean(campaignId && sendId),
+  });
+}
+
+/** AI usage filed under a campaign; refreshes while the tab is open (sending adds to it). */
+export function useCampaignUsage(campaignId: string) {
+  return useQuery({
+    queryKey: [...emailKeys.campaigns.detail(campaignId), "usage"],
+    queryFn: ({ signal }) => getCampaignUsage(campaignId, signal),
+    enabled: Boolean(campaignId),
+    refetchInterval: 30_000,
+  });
+}
+
+/** Sample AI-written email for one lead (uses the campaign's AI model; nothing is sent). */
+export function usePreviewAiStep(campaignId: string) {
+  return useMutation({
+    mutationFn: (input: {
+      step_number: number;
+      same_thread: boolean;
+      ai_instructions: string;
+      style_profile_id?: string | null;
+    }) =>
+      previewAiStep(campaignId, input),
+    onError: (err: any) => {
+      toast.error(err?.message || "Could not write a preview");
+    },
   });
 }
 
@@ -620,6 +675,7 @@ import {
   getInboxThread,
   updateInboxMessage,
   sendInboxReply,
+  draftInboxReply,
   getInboxUnreadCount,
   markAllInboxRead,
   pollInboxNow,
@@ -631,6 +687,7 @@ import {
 
 export function useInboxMessages(params?: {
   campaign_id?: string;
+  campaign_ids?: string[];
   account_id?: string;
   classification?: string;
   is_read?: boolean;
@@ -677,14 +734,34 @@ export function useSendInboxReply(id: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { subject: string; body_text?: string; body_html?: string; cc?: string }) =>
-      sendInboxReply(id, data),
+    mutationFn: (data: {
+      subject: string;
+      body_text?: string;
+      body_html?: string;
+      cc?: string;
+      files?: File[];
+    }) => sendInboxReply(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: emailKeys.inbox.all });
       toast.success("Reply dispatched via mailbox SMTP!");
     },
     onError: (err: any) => {
       toast.error(err?.message || "Failed to send reply");
+    },
+  });
+}
+
+/** Draft a reply with AI (nothing is sent). */
+export function useDraftInboxReply(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (notes?: string) => draftInboxReply(id, notes),
+    onSuccess: () => {
+      // The draft is filed under the campaign's usage.
+      queryClient.invalidateQueries({ queryKey: emailKeys.campaigns.all });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Could not generate a reply");
     },
   });
 }

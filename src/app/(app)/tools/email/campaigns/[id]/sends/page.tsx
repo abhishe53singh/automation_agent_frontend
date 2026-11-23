@@ -31,7 +31,7 @@ export default function CampaignSendsSubTabPage({ params }: PageProps) {
       {isLoading ? (
         <Skeleton className="h-64 rounded-xl" />
       ) : (
-        <SendLogTable sends={sends || []} />
+        <SendLogTable campaignId={campaignId} sends={sends || []} />
       )}
     </div>
   );

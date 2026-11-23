@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Send, Reply, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
+import { Send, Reply, ExternalLink, ChevronDown, ChevronUp, Sparkles, Paperclip, X, Download } from "lucide-react";
 import { toast } from "sonner";
 
 import { Card } from "@/shared/ui/Card";
@@ -12,7 +12,17 @@ import { Input } from "@/shared/ui/Input";
 import { Textarea } from "@/shared/ui/Textarea";
 
 import type { EmailInboxMessageOut, EmailThreadItem } from "../schemas";
-import { useInboxThread, useSendInboxReply, useUpdateInboxMessage } from "../hooks";
+import { useDraftInboxReply, useInboxThread, useSendInboxReply, useUpdateInboxMessage } from "../hooks";
+import { REPLY_ATTACHMENT_MAX_BYTES, REPLY_ATTACHMENT_MAX_FILES } from "../api";
+
+// Mirrors the backend's blocked list (email providers reject these).
+const BLOCKED_EXTENSIONS = /\.(exe|bat|cmd|com|scr|pif|msi|js|jse|vbs|vbe|ps1|jar|hta|cpl|reg|lnk|wsf|apk)$/i;
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
 
 interface InboxMessageProps {
   message: EmailInboxMessageOut;
@@ -42,11 +52,49 @@ export function InboxMessage({ message, onReplySuccess }: InboxMessageProps) {
       subject,
       body_text: replyText,
       cc: cc.trim() || undefined,
+      files: files.length > 0 ? files : undefined,
     });
     setReplyText("");
     setCc("");
+    setFiles([]);
     setShowReplyForm(false);
     onReplySuccess?.();
+  };
+
+  // Reply attachments (sent with the email; names/sizes are kept in the thread).
+  const [files, setFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
+  const addFiles = (picked: File[]) => {
+    const next = [...files];
+    for (const file of picked) {
+      if (BLOCKED_EXTENSIONS.test(file.name)) {
+        toast.error(`${file.name}: this file type is blocked by email providers`);
+        continue;
+      }
+      if (next.some((f) => f.name === file.name && f.size === file.size)) continue;
+      next.push(file);
+    }
+    if (next.length > REPLY_ATTACHMENT_MAX_FILES) {
+      toast.error(`Attach at most ${REPLY_ATTACHMENT_MAX_FILES} files`);
+      return;
+    }
+    if (next.reduce((sum, f) => sum + f.size, 0) > REPLY_ATTACHMENT_MAX_BYTES) {
+      toast.error(`Attachments can total at most ${REPLY_ATTACHMENT_MAX_BYTES / 1024 / 1024} MB`);
+      return;
+    }
+    setFiles(next);
+  };
+
+  // AI draft from the whole thread; anything already typed is sent as notes and replaced by the draft.
+  const draftMutation = useDraftInboxReply(message.id);
+  const handleGenerateReply = async () => {
+    try {
+      const { body_text } = await draftMutation.mutateAsync(replyText.trim() || undefined);
+      setReplyText(body_text);
+    } catch {
+      // toasted by the hook
+    }
   };
 
   const handleClassificationChange = (newClass: string) => {
@@ -127,12 +175,84 @@ export function InboxMessage({ message, onReplySuccess }: InboxMessageProps) {
             <Textarea
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
-              placeholder="Type your reply message..."
-              rows={4}
+              placeholder="Type your reply, or a few notes and press Generate reply…"
+              rows={draftMutation.isPending ? 4 : Math.min(12, Math.max(4, replyText.split("\n").length + 1))}
               className="text-xs"
+              disabled={draftMutation.isPending}
             />
 
-            <div className="flex justify-end gap-2 pt-1">
+            {files.length > 0 && (
+              <div className="flex flex-wrap gap-1.5" aria-label="Attachments">
+                {files.map((file, i) => (
+                  <span
+                    key={`${file.name}-${file.size}-${i}`}
+                    className="inline-flex max-w-[16rem] items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1 text-[11px] text-foreground"
+                  >
+                    <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
+                    <span className="truncate" title={file.name}>{file.name}</span>
+                    <span className="shrink-0 text-muted-foreground">{formatBytes(file.size)}</span>
+                    <button
+                      type="button"
+                      onClick={() => setFiles(files.filter((_, j) => j !== i))}
+                      disabled={replyMutation.isPending}
+                      className="shrink-0 rounded text-muted-foreground hover:text-destructive"
+                      aria-label={`Remove ${file.name}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+                <span className="self-center text-[10px] text-muted-foreground">
+                  {formatBytes(totalBytes)} of {REPLY_ATTACHMENT_MAX_BYTES / 1024 / 1024} MB
+                </span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <div className="flex items-center gap-1">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  addFiles(Array.from(e.target.files ?? []));
+                  e.target.value = ""; // allow picking the same file again after removing it
+                }}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={replyMutation.isPending}
+                onClick={() => fileInputRef.current?.click()}
+                className="gap-1.5 text-muted-foreground"
+                title={`Attach files (up to ${REPLY_ATTACHMENT_MAX_FILES}, ${REPLY_ATTACHMENT_MAX_BYTES / 1024 / 1024} MB in total)`}
+              >
+                <Paperclip className="h-3.5 w-3.5" />
+                <span>Attach</span>
+              </Button>
+              {message.campaign_id ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={draftMutation.isPending || replyMutation.isPending}
+                  onClick={handleGenerateReply}
+                  className="gap-1.5 text-primary"
+                  title="Write a reply with the campaign's AI model from this whole conversation. What you typed is used as notes. Nothing is sent."
+                >
+                  <Sparkles className={`h-3.5 w-3.5 ${draftMutation.isPending ? "animate-pulse" : ""}`} />
+                  <span>
+                    {draftMutation.isPending
+                      ? "Writing…"
+                      : replyText.trim()
+                        ? "Generate reply from my notes"
+                        : "Generate reply"}
+                  </span>
+                </Button>
+              ) : null}
+              </div>
               <Button
                 size="sm"
                 disabled={replyMutation.isPending || !replyText.trim()}
@@ -225,6 +345,7 @@ function ConversationThread({
             body_html: fallback.body_text ? null : fallback.body_html,
             date: fallback.received_at,
             classification: fallback.classification,
+            attachments: [],
           },
         ];
 
@@ -313,8 +434,11 @@ function ThreadCard({ item, highlighted }: { item: EmailThreadItem; highlighted:
       {/* Full message body — quoted history already stripped server-side */}
       <div className="mt-3 pl-11">
         {item.body_html ? (
+          // Sent HTML carries its own inline colours (dark text for white email
+          // backgrounds), so show it on white paper like an email client does;
+          // inverting it for dark mode made styled emails unreadable.
           <div
-            className="prose prose-sm max-w-none text-foreground dark:prose-invert"
+            className="prose prose-sm max-w-none rounded-md bg-white p-3 text-[#1f2937] [&_a]:text-[#2563eb]"
             dangerouslySetInnerHTML={{ __html: item.body_html }}
           />
         ) : (
@@ -323,6 +447,52 @@ function ThreadCard({ item, highlighted }: { item: EmailThreadItem; highlighted:
               <span className="text-muted-foreground italic">No text content</span>
             )}
           </p>
+        )}
+        {item.attachments.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Attachments sent">
+            {item.attachments.map((file, i) => {
+              const chip = (
+                <>
+                  {file.downloadable ? (
+                    <Download className="h-3 w-3 shrink-0 text-primary" aria-hidden />
+                  ) : (
+                    <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
+                  )}
+                  <span className={`truncate ${file.downloadable ? "" : "text-muted-foreground"}`}>{file.filename}</span>
+                  {file.size ? <span className="shrink-0 text-muted-foreground">{formatBytes(file.size)}</span> : null}
+                </>
+              );
+              const base =
+                "inline-flex max-w-[16rem] items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1 text-[11px] text-foreground";
+              return file.downloadable ? (
+                <a
+                  key={`${file.filename}-${i}`}
+                  href={`/api/email/email-inbox/replies/${item.id}/attachments/${file.index ?? i}`}
+                  download={file.filename}
+                  className={`${base} hover:border-primary/50 hover:bg-primary/10`}
+                  title={
+                    file.expires_at
+                      ? `Download · kept until ${new Date(file.expires_at).toLocaleDateString([], { dateStyle: "medium" })}`
+                      : "Download"
+                  }
+                >
+                  {chip}
+                </a>
+              ) : (
+                <span
+                  key={`${file.filename}-${i}`}
+                  className={base}
+                  title={
+                    file.deleted_at
+                      ? `Deleted from storage on ${new Date(file.deleted_at).toLocaleDateString([], { dateStyle: "medium" })} (files are kept for 30 days)`
+                      : "Sent before attachments were stored, so it can't be downloaded"
+                  }
+                >
+                  {chip}
+                </span>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>

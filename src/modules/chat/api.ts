@@ -255,6 +255,8 @@ export function createTurn(
     agent_ids: input.agent_ids?.length ? input.agent_ids : undefined,
     tool_names: input.tool_names?.length ? input.tool_names : undefined,
     attachment_ids: input.attachment_ids?.length ? input.attachment_ids : undefined,
+    character_ids: input.character_ids?.length ? input.character_ids : undefined,
+    style_profile_id: input.style_profile_id,
   });
 
   return apiJson(

@@ -14,6 +14,10 @@ import {
   EmailInboxMessageOutSchema,
   EmailThreadItemSchema,
   EmailCampaignStepsOutSchema,
+  EmailAiPreviewSchema,
+  type EmailAiPreview,
+  EmailCampaignUsageSchema,
+  type EmailCampaignUsage,
   type EmailAccountOut,
   type EmailAccountCreate,
   type EmailAccountUpdate,
@@ -202,6 +206,32 @@ export function createEmailLead(
 
 export function deleteEmailLead(id: string, signal?: AbortSignal): Promise<void> {
   return apiVoid(`/api/email/email-leads/${id}`, { method: "DELETE", signal });
+}
+
+/** One edited contact: `id` plus only the fields that changed. */
+export type EmailLeadEdit = { id: string } & Partial<{
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  company: string | null;
+  company_domain: string | null;
+  company_size: string | null;
+  title: string | null;
+  industry: string | null;
+  location: string | null;
+  phone: string | null;
+  linkedin_url: string | null;
+  status: string;
+  tags: string[];
+}>;
+
+/** Save spreadsheet edits for several contacts at once (all or nothing). */
+export function bulkUpdateEmailLeads(items: EmailLeadEdit[]): Promise<EmailLeadOut[]> {
+  return apiJson(
+    "/api/email/email-leads/bulk",
+    { method: "PATCH", body: { items } },
+    (value) => parseWith(z.array(EmailLeadOutSchema), value, "PATCH /email-leads/bulk")
+  );
 }
 
 export async function previewLeadImport(
@@ -431,6 +461,51 @@ export function updateCampaignSteps(
   );
 }
 
+const SentStepEmailSchema = z.object({
+  step_number: z.number(),
+  subject: z.string(),
+  body_html: z.string().nullable().optional(),
+  status: z.string(),
+  sent_at: z.string().nullable().optional(),
+  error: z.string().nullable().optional(),
+});
+export type SentStepEmail = z.infer<typeof SentStepEmailSchema>;
+
+/** The emails a campaign sent one lead (initial + follow-ups), tracking removed. */
+export function getSentEmailsForLead(
+  campaignId: string,
+  sendId: string,
+  signal?: AbortSignal
+): Promise<SentStepEmail[]> {
+  return apiJson(`/api/email/email-campaigns/${campaignId}/sends/${sendId}/emails`, { signal }, (value) =>
+    parseWith(z.array(SentStepEmailSchema), value, "GET /email-campaigns/{id}/sends/{send_id}/emails")
+  );
+}
+
+/** AI usage (tokens, cost, web searches) filed under one campaign. */
+export function getCampaignUsage(id: string, signal?: AbortSignal): Promise<EmailCampaignUsage> {
+  return apiJson(`/api/email/email-campaigns/${id}/usage`, { signal }, (value) =>
+    parseWith(EmailCampaignUsageSchema, value, "GET /email-campaigns/{id}/usage")
+  );
+}
+
+/** Write one sample AI email for a lead of the campaign (nothing is sent). */
+export function previewAiStep(
+  id: string,
+  input: {
+    step_number: number;
+    same_thread: boolean;
+    ai_instructions: string;
+    style_profile_id?: string | null;
+  },
+): Promise<EmailAiPreview> {
+  return apiJson(
+    `/api/email/email-campaigns/${id}/steps/ai-preview`,
+    { method: "POST", body: input, timeoutMs: 120_000 },
+    (value) => parseWith(EmailAiPreviewSchema, value, "POST /email-campaigns/{id}/steps/ai-preview")
+  );
+}
+
 export function updateEmailCampaign(
   id: string,
   data: any,
@@ -517,6 +592,8 @@ export function getEmailCampaignKanban(
 export function listInboxMessages(
   params?: {
     campaign_id?: string;
+    /** Any of these campaigns (empty/undefined = no campaign filter). */
+    campaign_ids?: string[];
     account_id?: string;
     classification?: string;
     is_read?: boolean;
@@ -531,6 +608,7 @@ export function listInboxMessages(
   const queryParams = new URLSearchParams();
   if (params?.group) queryParams.set("group", params.group);
   if (params?.campaign_id) queryParams.set("campaign_id", params.campaign_id);
+  for (const id of params?.campaign_ids ?? []) queryParams.append("campaign_ids", id);
   if (params?.account_id) queryParams.set("account_id", params.account_id);
   if (params?.classification) queryParams.set("classification", params.classification);
   if (params?.is_read !== undefined) queryParams.set("is_read", String(params.is_read));
@@ -572,15 +650,39 @@ export function updateInboxMessage(
   );
 }
 
+/** Reply limits (mirrors backend email_sender): attachments total and count. */
+export const REPLY_ATTACHMENT_MAX_BYTES = 20 * 1024 * 1024;
+export const REPLY_ATTACHMENT_MAX_FILES = 10;
+
 export function sendInboxReply(
   id: string,
-  data: { subject: string; body_text?: string; body_html?: string; cc?: string },
+  data: { subject: string; body_text?: string; body_html?: string; cc?: string; files?: File[] },
   signal?: AbortSignal
 ): Promise<any> {
+  const { files, ...fields } = data;
+  let body: unknown = fields;
+  if (files && files.length > 0) {
+    // Multipart: same fields + `files`.
+    const form = new FormData();
+    for (const [key, value] of Object.entries(fields)) {
+      if (value !== undefined && value !== null) form.append(key, String(value));
+    }
+    for (const file of files) form.append("files", file, file.name);
+    body = form;
+  }
   return apiJson(
     `/api/email/email-inbox/${id}/reply`,
-    { method: "POST", body: data, signal },
+    { method: "POST", body: body as never, signal, timeoutMs: 120_000 },
     (value) => value
+  );
+}
+
+/** AI-drafted reply from the whole conversation (campaign's AI model). `notes` = what the user typed. */
+export function draftInboxReply(id: string, notes?: string): Promise<{ body_text: string }> {
+  return apiJson(
+    `/api/email/email-inbox/${id}/draft-reply`,
+    { method: "POST", body: { notes: notes || undefined }, timeoutMs: 120_000 },
+    (value) => parseWith(z.object({ body_text: z.string() }), value, "POST /email-inbox/{id}/draft-reply")
   );
 }
 

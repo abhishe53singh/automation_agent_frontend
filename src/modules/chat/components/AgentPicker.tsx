@@ -1,6 +1,7 @@
 "use client";
 
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
+import type { Route } from "next";
 import Link from "next/link";
 import * as React from "react";
 import {
@@ -16,7 +17,9 @@ import {
   Sheet,
   ListChecks,
   Paperclip,
+  PenLine,
   Plus,
+  UserRound,
   Wrench,
   X,
   type LucideProps,
@@ -92,7 +95,29 @@ export interface AgentPickerProps {
   onToolsChange?: (ids: string[]) => void;
   /** Shows an "Attach files" item at the top that opens the file dialog. */
   onAttachFiles?: () => void;
+  /** Saved characters (Tools -> Characters); omit the setter to hide the section. */
+  characters?: PersonaOption[] | undefined;
+  selectedCharacterIds?: string[];
+  onCharactersChange?: (ids: string[]) => void;
+  /** User Style Profiles (Tools -> Style Profiles); at most one is picked. */
+  styleProfiles?: PersonaOption[] | undefined;
+  selectedStyleProfileId?: string | null;
+  onStyleProfileChange?: (id: string | null) => void;
   disabled?: boolean;
+}
+
+/** A saved character or style profile as the picker needs it. */
+export interface PersonaOption {
+  id: string;
+  name: string;
+  is_active: boolean;
+  role?: string | null;
+  summary?: string | null;
+  about?: string | null;
+}
+
+function personaHint(option: PersonaOption): string {
+  return (option.role || option.summary || option.about || "").trim();
 }
 
 const NO_IDS: string[] = [];
@@ -111,9 +136,23 @@ export function AgentPicker({
   selectedToolIds = NO_IDS,
   onToolsChange,
   onAttachFiles,
+  characters,
+  selectedCharacterIds = NO_IDS,
+  onCharactersChange,
+  styleProfiles,
+  selectedStyleProfileId = null,
+  onStyleProfileChange,
   disabled,
 }: AgentPickerProps) {
   const [query, setQuery] = React.useState("");
+  const activeCharacters = React.useMemo(
+    () => (onCharactersChange ? (characters ?? []).filter((c) => c.is_active) : []),
+    [characters, onCharactersChange],
+  );
+  const activeProfiles = React.useMemo(
+    () => (onStyleProfileChange ? (styleProfiles ?? []).filter((p) => p.is_active) : []),
+    [styleProfiles, onStyleProfileChange],
+  );
   const active = React.useMemo(() => (agents ?? []).filter((agent) => agent.is_active), [agents]);
   const showTools = Boolean(onToolsChange);
   const toolList = React.useMemo(() => (showTools ? (tools ?? []) : []), [showTools, tools]);
@@ -136,7 +175,16 @@ export function AgentPicker({
     : toolList;
   const selected = new Set(selectedIds);
   const selectedTools = new Set(selectedToolIds);
-  const showSearch = active.length + toolList.length > SEARCH_THRESHOLD;
+  const matchesPersona = (option: PersonaOption) =>
+    !needle ||
+    option.name.toLowerCase().includes(needle) ||
+    personaHint(option).toLowerCase().includes(needle);
+  const visibleCharacters = activeCharacters.filter(matchesPersona);
+  const visibleProfiles = activeProfiles.filter(matchesPersona);
+  const pickedCharacters = new Set(selectedCharacterIds);
+  const showSearch =
+    active.length + toolList.length + activeCharacters.length + activeProfiles.length >
+    SEARCH_THRESHOLD;
 
   const toggle = (id: string) =>
     onChange(selected.has(id) ? selectedIds.filter((value) => value !== id) : [...selectedIds, id]);
@@ -168,8 +216,8 @@ export function AgentPicker({
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search tools and agents…"
-              aria-label="Search tools and agents"
+              placeholder="Search tools, agents, characters…"
+              aria-label="Search tools, agents, characters and style profiles"
               className="h-8 text-xs"
               // Keep Radix's typeahead from stealing focus while typing;
               // arrows and Escape still reach the menu.
@@ -294,9 +342,176 @@ export function AgentPicker({
               ))
             )}
           </DropdownMenuPrimitive.Group>
+
+          {onCharactersChange ? (
+            <>
+              <DropdownMenuSeparator />
+              <PersonaGroup
+                label="Characters"
+                icon={UserRound}
+                emptyHref="/tools/characters"
+                emptyText="No characters yet"
+                emptyLink="Create one under Tools → Characters"
+                total={activeCharacters.length}
+                options={visibleCharacters}
+                isChecked={(id) => pickedCharacters.has(id)}
+                onToggle={(id) =>
+                  onCharactersChange(
+                    pickedCharacters.has(id)
+                      ? selectedCharacterIds.filter((value) => value !== id)
+                      : [...selectedCharacterIds, id],
+                  )
+                }
+              />
+            </>
+          ) : null}
+
+          {onStyleProfileChange ? (
+            <>
+              <DropdownMenuSeparator />
+              <PersonaGroup
+                label="Style profile (one)"
+                icon={PenLine}
+                emptyHref="/tools/style-profiles"
+                emptyText="No style profiles yet"
+                emptyLink="Create one under Tools → Style Profiles"
+                total={activeProfiles.length}
+                options={visibleProfiles}
+                isChecked={(id) => selectedStyleProfileId === id}
+                onToggle={(id) => onStyleProfileChange(selectedStyleProfileId === id ? null : id)}
+              />
+            </>
+          ) : null}
         </div>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/** Characters / style profiles section of the "+" menu. */
+function PersonaGroup({
+  label,
+  icon: Icon,
+  emptyHref,
+  emptyText,
+  emptyLink,
+  total,
+  options,
+  isChecked,
+  onToggle,
+}: {
+  label: string;
+  icon: typeof Wrench;
+  emptyHref: Route;
+  emptyText: string;
+  emptyLink: string;
+  total: number;
+  options: PersonaOption[];
+  isChecked: (id: string) => boolean;
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <DropdownMenuPrimitive.Group aria-label={label}>
+      <DropdownMenuLabel>{label}</DropdownMenuLabel>
+      {total === 0 ? (
+        <div className="space-y-1 px-2 py-3 text-xs">
+          <p className="font-medium text-foreground">{emptyText}</p>
+          <p className="text-muted-foreground">
+            <Link href={emptyHref} className="text-primary hover:underline">
+              {emptyLink}
+            </Link>
+          </p>
+        </div>
+      ) : options.length === 0 ? (
+        <p className="px-2 py-3 text-xs text-muted-foreground">No matches.</p>
+      ) : (
+        options.map((option) => (
+          <DropdownMenuPrimitive.CheckboxItem
+            key={option.id}
+            checked={isChecked(option.id)}
+            // Keep the menu open so several items can be picked.
+            onSelect={(event) => {
+              event.preventDefault();
+              onToggle(option.id);
+            }}
+            className={ITEM_CLASS}
+          >
+            <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center">
+              <DropdownMenuPrimitive.ItemIndicator>
+                <Check aria-hidden className="size-4" />
+              </DropdownMenuPrimitive.ItemIndicator>
+            </span>
+            <Icon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-medium">{option.name}</span>
+              {personaHint(option) ? (
+                <span className="block truncate text-xs text-muted-foreground">
+                  {personaHint(option)}
+                </span>
+              ) : null}
+            </span>
+          </DropdownMenuPrimitive.CheckboxItem>
+        ))
+      )}
+    </DropdownMenuPrimitive.Group>
+  );
+}
+
+/** Removable chips for attached characters and the style profile. */
+export function PersonaChips({
+  characterIds,
+  characters,
+  onRemoveCharacter,
+  styleProfileId,
+  styleProfiles,
+  onRemoveStyleProfile,
+}: {
+  characterIds: string[];
+  characters: PersonaOption[] | undefined;
+  onRemoveCharacter: (id: string) => void;
+  styleProfileId: string | null;
+  styleProfiles: PersonaOption[] | undefined;
+  onRemoveStyleProfile: () => void;
+}) {
+  const characterNames = new Map((characters ?? []).map((c) => [c.id, c.name]));
+  const profileName = styleProfileId
+    ? ((styleProfiles ?? []).find((p) => p.id === styleProfileId)?.name ?? "Style profile")
+    : null;
+  if (characterIds.length === 0 && !profileName) return null;
+  const chip = (
+    key: string,
+    Icon: typeof Wrench,
+    name: string,
+    kind: string,
+    onRemove: () => void,
+  ) => (
+    <li
+      key={key}
+      className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary py-0.5 pl-2 pr-0.5 text-xs text-secondary-foreground"
+    >
+      <Icon aria-hidden className="size-3" />
+      <span className="max-w-[12rem] truncate">{name}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Remove ${kind} ${name}`}
+        className="inline-flex size-5 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <X aria-hidden className="size-3" />
+      </button>
+    </li>
+  );
+  return (
+    <ul aria-label="Attached characters and style profile" className="flex flex-wrap gap-1.5">
+      {characterIds.map((id) =>
+        chip(id, UserRound, characterNames.get(id) ?? "Character", "character", () =>
+          onRemoveCharacter(id),
+        ),
+      )}
+      {profileName && styleProfileId
+        ? chip(styleProfileId, PenLine, profileName, "style profile", onRemoveStyleProfile)
+        : null}
+    </ul>
   );
 }
 

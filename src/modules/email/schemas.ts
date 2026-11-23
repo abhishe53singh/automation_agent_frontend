@@ -178,6 +178,13 @@ export const EmailCampaignOutSchema = z.object({
   send_window_start: z.string().optional().default("09:00"),
   send_window_end: z.string().optional().default("17:00"),
   send_days: z.array(z.number()).optional().default([0, 1, 2, 3, 4]),
+  /** Model that writes AI-written sequence steps. */
+  ai_model_id: z.string().uuid().nullable().optional(),
+  /** "html" = styled HTML with open/click tracking; "plain" = plain text only. */
+  email_format: z.enum(["html", "plain"]).optional().default("html"),
+  /** Per-lead research before AI-written emails (0 = off). */
+  ai_research_searches: z.number().optional().default(1),
+  ai_research_pages: z.number().optional().default(1),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -194,10 +201,63 @@ export const EmailCampaignStepSchema = z.object({
   delay_hours: z.number(),
   template_ids: z.array(z.string()),
   same_thread: z.boolean(),
+  ai_generated: z.boolean().optional().default(false),
+  ai_instructions: z.string().nullable().optional(),
+  /** Optional User Style Profile (Tools -> Style Profiles) of an AI-written step. */
+  style_profile_id: z.string().uuid().nullable().optional(),
   sent_count: z.number().optional().default(0),
 });
 
 export type EmailCampaignStep = z.infer<typeof EmailCampaignStepSchema>;
+
+export const EmailAiPreviewSchema = z.object({
+  lead_email: z.string(),
+  lead_name: z.string().nullable().optional(),
+  subject: z.string(),
+  body_html: z.string(),
+  body_text: z.string(),
+  email_format: z.string(),
+  plain: z.boolean(),
+  used_previous_emails: z.boolean().optional().default(false),
+  research_sources: z
+    .array(z.object({ type: z.string(), url: z.string().nullable().optional(), title: z.string().nullable().optional() }))
+    .optional()
+    .default([]),
+  research_notes: z.array(z.string()).optional().default([]),
+});
+
+export type EmailAiPreview = z.infer<typeof EmailAiPreviewSchema>;
+
+// Decimals arrive as strings from the API.
+const money = z.union([z.string(), z.number()]).transform((v) => Number(v) || 0);
+const usageBucket = {
+  calls: z.number(),
+  input_tokens: z.number(),
+  output_tokens: z.number(),
+  total_tokens: z.number(),
+  cost: money,
+};
+
+export const EmailCampaignUsageSchema = z.object({
+  campaign_id: z.string(),
+  campaign_name: z.string(),
+  totals: z.object(usageBucket),
+  web_searches: z.number(),
+  by_task: z.array(z.object({ task: z.string(), label: z.string(), ...usageBucket })),
+  by_model: z.array(z.object({ model: z.string(), ...usageBucket })),
+  recent: z.array(
+    z.object({
+      created_at: z.string(),
+      task: z.string(),
+      model: z.string().nullable().optional(),
+      input_tokens: z.number(),
+      output_tokens: z.number(),
+      cost: money,
+    })
+  ),
+});
+
+export type EmailCampaignUsage = z.infer<typeof EmailCampaignUsageSchema>;
 
 export const EmailCampaignStepsOutSchema = z.object({
   steps: z.array(EmailCampaignStepSchema),
@@ -213,6 +273,12 @@ export interface EmailCampaignStepInput {
   delay_hours: number;
   template_ids: string[];
   same_thread: boolean;
+  /** Each lead's email is written by the campaign's AI model; templates are kept but unused. */
+  ai_generated: boolean;
+  /** What this AI-written email should say (offer, call to action, tone). */
+  ai_instructions: string;
+  /** Optional User Style Profile the AI writes this step in (null: default voice). */
+  style_profile_id: string | null;
 }
 
 export const EmailSendOutSchema = z.object({
@@ -315,6 +381,21 @@ export const EmailThreadItemSchema = z.object({
   body_html: z.string().nullable().optional(),
   date: z.string().nullable().optional(),
   classification: z.string().nullable().optional(),
+  /** Our replies: files sent with them (names/sizes only). */
+  attachments: z
+    .array(
+      z.object({
+        filename: z.string(),
+        size: z.number().nullable().optional(),
+        content_type: z.string().nullable().optional(),
+        index: z.number().optional(),
+        downloadable: z.boolean().optional().default(false),
+        expires_at: z.string().nullable().optional(),
+        deleted_at: z.string().nullable().optional(),
+      })
+    )
+    .optional()
+    .default([]),
 });
 
 export type EmailThreadItem = z.infer<typeof EmailThreadItemSchema>;

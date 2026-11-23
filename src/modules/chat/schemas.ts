@@ -144,6 +144,10 @@ export const chatTurnSchema = z.object({
   tool_names: z.array(z.string()).default([]),
   /** Per-chat attachments sent with THIS message (may be empty). */
   attachment_ids: z.array(z.string()).default([]),
+  /** Saved characters (Tools -> Characters) attached to this round. */
+  character_ids: z.array(z.string().uuid()).default([]),
+  /** User Style Profile (Tools -> Style Profiles) the answer is written in. */
+  style_profile_id: z.string().uuid().nullable().optional(),
 });
 export type ChatTurn = z.infer<typeof chatTurnSchema>;
 
@@ -260,6 +264,10 @@ export const turnCreateSchema = z.object({
   tool_names: z.array(z.string().min(1)).optional(),
   /** Ready chat attachments (ids from POST .../attachments) sent with this message. */
   attachment_ids: z.array(z.string().min(1)).optional(),
+  /** Saved characters kept consistent in image / video generation. */
+  character_ids: z.array(z.string().uuid()).optional(),
+  /** User Style Profile the answer is written in. */
+  style_profile_id: z.string().uuid().optional(),
 });
 export type TurnCreate = z.infer<typeof turnCreateSchema>;
 

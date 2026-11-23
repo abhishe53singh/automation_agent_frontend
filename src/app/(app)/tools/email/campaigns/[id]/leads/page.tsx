@@ -5,7 +5,7 @@ import { UserPlus, Upload } from "lucide-react";
 
 import { Button } from "@/shared/ui/Button";
 import { Skeleton } from "@/shared/ui/Skeleton";
-import { useCampaignLeads } from "@/modules/email/hooks";
+import { useCampaignLeads, useEmailCampaign } from "@/modules/email/hooks";
 import { CampaignLeadTable } from "@/modules/email/components/CampaignLeadTable";
 import { AssignLeadsModal } from "@/modules/email/components/AssignLeadsModal";
 import { ImportWizard } from "@/modules/email/components/ImportWizard";
@@ -19,6 +19,7 @@ export default function CampaignLeadsSubTabPage({ params }: PageProps) {
   const [importOpen, setImportOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const { data: leads, isLoading, refetch } = useCampaignLeads(campaignId);
+  const { data: campaign } = useEmailCampaign(campaignId);
 
   const existingLeadIds = useMemo(() => {
     return new Set<string>(leads?.map((l: any) => l.lead_id) || []);
@@ -63,6 +64,7 @@ export default function CampaignLeadsSubTabPage({ params }: PageProps) {
       ) : (
         <CampaignLeadTable
           campaignId={campaignId}
+          campaignStatus={campaign?.status}
           leads={leads || []}
           onOpenAssign={() => setImportOpen(true)}
           onOpenAssignLeads={() => setAssignOpen(true)}

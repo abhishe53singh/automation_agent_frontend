@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Paperclip, Send, Square } from "lucide-react";
 
-import { AgentChips, AgentPicker, ToolChips } from "./AgentPicker";
+import { AgentChips, AgentPicker, PersonaChips, ToolChips } from "./AgentPicker";
 import { AttachmentChips } from "./Attachments";
 import {
   SlashCommandHint,
@@ -14,10 +14,13 @@ import {
 import {
   sendableToolNames,
   useSessionAgentSelection,
+  useSessionCharacterSelection,
+  useSessionStyleProfile,
   useSessionToolSelection,
 } from "../agent-selection";
 import { useChatTools, useSubmitTurn } from "../hooks";
 import { useAgents } from "@/modules/agents/hooks";
+import { useCharacters, useStyleProfiles } from "@/modules/personas/hooks";
 import { turnCreateSchema, type ChatSession, type ChatTurn } from "../schemas";
 import { toast } from "sonner";
 
@@ -101,6 +104,17 @@ export function Composer({
   /** Tools picked for this chat; unavailable ones stay selected but are not sent. */
   const tools = useChatTools(session.project_id);
   const [toolIds, setToolIds] = useSessionToolSelection(session.id, tools.data);
+  /** Saved characters / style profile (Tools), sticky per chat like agents. */
+  const characters = useCharacters();
+  const [characterIds, setCharacterIds] = useSessionCharacterSelection(
+    session.id,
+    characters.data,
+  );
+  const styleProfiles = useStyleProfiles();
+  const [styleProfileId, setStyleProfileId] = useSessionStyleProfile(
+    session.id,
+    styleProfiles.data,
+  );
   // A deleted model (or one of a deleted provider) can never be picked again;
   // the chat keeps its history but the model leaves every selection.
   const usableModels = session.models.filter(
@@ -149,6 +163,8 @@ export function Composer({
       agent_ids: agentIds.length > 0 ? agentIds : undefined,
       tool_names: toolNames.length > 0 ? toolNames : undefined,
       attachment_ids: attachments.readyIds.length > 0 ? attachments.readyIds : undefined,
+      character_ids: characterIds.length > 0 ? characterIds : undefined,
+      style_profile_id: styleProfileId ?? undefined,
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Check the highlighted fields.");
@@ -237,7 +253,7 @@ export function Composer({
         </div>
       ) : null}
 
-      {toolIds.length > 0 || agentIds.length > 0 ? (
+      {toolIds.length > 0 || agentIds.length > 0 || characterIds.length > 0 || styleProfileId ? (
         <div className="flex flex-wrap gap-1.5">
           <ToolChips
             selectedIds={toolIds}
@@ -248,6 +264,14 @@ export function Composer({
             selectedIds={agentIds}
             agents={agents.data}
             onRemove={(id) => setAgentIds(agentIds.filter((value) => value !== id))}
+          />
+          <PersonaChips
+            characterIds={characterIds}
+            characters={characters.data}
+            onRemoveCharacter={(id) => setCharacterIds(characterIds.filter((value) => value !== id))}
+            styleProfileId={styleProfileId}
+            styleProfiles={styleProfiles.data}
+            onRemoveStyleProfile={() => setStyleProfileId(null)}
           />
         </div>
       ) : null}
@@ -346,6 +370,12 @@ export function Composer({
               selectedToolIds={toolIds}
               onToolsChange={setToolIds}
               onAttachFiles={openFileDialog}
+              characters={characters.data}
+              selectedCharacterIds={characterIds}
+              onCharactersChange={setCharacterIds}
+              styleProfiles={styleProfiles.data}
+              selectedStyleProfileId={styleProfileId}
+              onStyleProfileChange={setStyleProfileId}
             />
           </div>
         </div>

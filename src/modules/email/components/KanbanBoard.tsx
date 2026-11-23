@@ -17,7 +17,7 @@ interface KanbanBoardProps {
 }
 
 const STAGES_CONFIG = [
-  { key: "queued", label: "Queued", color: "border-slate-500/20 text-slate-500 bg-slate-500/10" },
+  { key: "queued", label: "Not contacted", color: "border-slate-500/20 text-slate-500 bg-slate-500/10" },
   { key: "contacted", label: "Contacted", color: "border-blue-500/30 text-blue-500 bg-blue-500/10" },
   { key: "opened", label: "Opened", color: "border-amber-500/30 text-amber-500 bg-amber-500/10" },
   { key: "replied", label: "Replied", color: "border-orange-500/30 text-orange-500 bg-orange-500/10" },
@@ -58,7 +58,12 @@ export function KanbanBoard({ campaignId, kanbanData }: KanbanBoardProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          <Badge variant="primary" className="text-xs py-1 gap-1 border-primary/30 text-primary">
+          {/* Tinted, not the solid "primary" variant: that paints the text in the same blue as the fill. */}
+          <Badge
+            variant="neutral"
+            className="text-xs py-1 gap-1 border border-primary/30 bg-primary/10 text-primary"
+            title="Leads move to Contacted, Opened and Replied automatically as emails are sent, opened and answered"
+          >
             <Sparkles className="h-3 w-3" />
             <span>Auto Progression: Sent → Opened → Replied</span>
           </Badge>

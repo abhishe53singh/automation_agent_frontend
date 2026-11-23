@@ -18,6 +18,8 @@ import {
   SelectCheckbox,
   emptyCopy,
   PurgeDialog,
+  RegistrySearch,
+  matchesQuery,
   useRowSelection,
 } from "./RegistryLifecycle";
 import type { LlmProvider, RegistryStatus } from "../schemas";
@@ -41,6 +43,7 @@ import { AsyncBoundary } from "@/shared/ui/AsyncBoundary";
  */
 export function ProviderList() {
   const [tab, setTab] = React.useState<RegistryStatus>("active");
+  const [query, setQuery] = React.useState("");
 
   return (
     <Card>
@@ -53,21 +56,30 @@ export function ProviderList() {
               database and never returned — only a key-present flag is shown.
             </CardDescription>
           </div>
-          <ProviderDialog />
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            <RegistrySearch value={query} onChange={setQuery} placeholder="Search providers" />
+            <ProviderDialog />
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <LifecycleTabs value={tab} onChange={setTab} label="Provider status" />
         {/* Keyed by tab: switching tabs starts with nothing selected. */}
-        <ProviderTab key={tab} status={tab} />
+        <ProviderTab key={tab} status={tab} query={query} />
       </CardContent>
     </Card>
   );
 }
 
-function ProviderTab({ status }: { status: RegistryStatus }) {
+function ProviderTab({ status, query }: { status: RegistryStatus; query: string }) {
   const providers = useProviders(status);
-  const rows = React.useMemo(() => providers.data ?? [], [providers.data]);
+  const allRows = React.useMemo(() => providers.data ?? [], [providers.data]);
+  // Selection (and "select all") only ever covers the rows the filter shows.
+  const rows = React.useMemo(
+    () =>
+      allRows.filter((row) => matchesQuery(query, row.name, row.display_name, row.base_url)),
+    [allRows, query],
+  );
   const ids = React.useMemo(() => rows.map((row) => row.id), [rows]);
   const selection = useRowSelection(ids);
   const bulk = useBulkLifecycle("providers");
@@ -76,7 +88,7 @@ function ProviderTab({ status }: { status: RegistryStatus }) {
     <AsyncBoundary
       isPending={providers.isPending}
       error={providers.error}
-      isEmpty={rows.length === 0}
+      isEmpty={allRows.length === 0}
       skeleton={
         <div className="space-y-2">
           {Array.from({ length: 2 }, (_, index) => (
@@ -95,7 +107,7 @@ function ProviderTab({ status }: { status: RegistryStatus }) {
             onChange={selection.toggleAll}
             label="Select all providers"
           />
-          <span>Select all</span>
+          <span>{query.trim() ? `Select all filtered (${rows.length})` : "Select all"}</span>
         </div>
         <BulkActionBar
           kind="provider"
@@ -109,6 +121,11 @@ function ProviderTab({ status }: { status: RegistryStatus }) {
           }
         />
         <ul className="divide-y divide-border">
+          {rows.length === 0 ? (
+            <li className="py-6 text-center text-sm text-muted-foreground">
+              No providers match “{query.trim()}”.
+            </li>
+          ) : null}
           {rows.map((provider) => (
             <li key={provider.id} className="flex items-start gap-3 py-3">
               <span className="pt-0.5">

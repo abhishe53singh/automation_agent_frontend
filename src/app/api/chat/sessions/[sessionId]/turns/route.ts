@@ -48,6 +48,8 @@ export async function POST(
       agent_ids: agentIds,
       tool_names: toolNames,
       attachment_ids: attachmentIds,
+      character_ids: characterIds,
+      style_profile_id: styleProfileId,
     } = (body ?? {}) as Record<string, unknown>;
 
     if (typeof content !== "string" || !content.trim()) {
@@ -80,6 +82,15 @@ export async function POST(
       }
     }
 
+    if (characterIds !== undefined && characterIds !== null) {
+      if (!Array.isArray(characterIds) || characterIds.some((value) => typeof value !== "string")) {
+        throw badRequest("`character_ids` must be a list of strings.");
+      }
+    }
+    if (styleProfileId !== undefined && styleProfileId !== null && typeof styleProfileId !== "string") {
+      throw badRequest("`style_profile_id` must be a string.");
+    }
+
     const payload: Record<string, unknown> = { content: content.trim() };
     if (typeof parentTurnId === "string" && parentTurnId.trim()) {
       payload.parent_turn_id = parentTurnId.trim();
@@ -92,6 +103,14 @@ export async function POST(
     // Chat attachments sent with THIS message (images go to the model); empty is omitted.
     if (Array.isArray(attachmentIds) && attachmentIds.length > 0) {
       payload.attachment_ids = attachmentIds;
+    }
+
+    // Saved characters / style profile (Tools); empty is omitted.
+    if (Array.isArray(characterIds) && characterIds.length > 0) {
+      payload.character_ids = characterIds;
+    }
+    if (typeof styleProfileId === "string" && styleProfileId.trim()) {
+      payload.style_profile_id = styleProfileId.trim();
     }
 
     // Upstream only stores the turn and queues generation (the answer streams

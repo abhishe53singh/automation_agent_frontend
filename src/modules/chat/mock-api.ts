@@ -245,6 +245,7 @@ export const mockChat = {
         newResponse(row.model as NonNullable<typeof row.model>, message.id),
       ),
       agent_ids: input.agent_ids ?? [],
+      character_ids: [],
       tool_names: input.tool_names ?? [],
       attachment_ids: input.attachment_ids ?? [],
     };

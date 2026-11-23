@@ -18,6 +18,8 @@ import {
   SelectCheckbox,
   emptyCopy,
   PurgeDialog,
+  RegistrySearch,
+  matchesQuery,
   useRowSelection,
 } from "./RegistryLifecycle";
 import type { LlmModel, RegistryStatus } from "../schemas";
@@ -40,6 +42,7 @@ import { AsyncBoundary } from "@/shared/ui/AsyncBoundary";
  */
 export function ModelList() {
   const [tab, setTab] = React.useState<RegistryStatus>("active");
+  const [query, setQuery] = React.useState("");
   // New models can only be added under an active provider.
   const providers = useProviders("active");
 
@@ -54,24 +57,32 @@ export function ModelList() {
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <LifecycleTabs value={tab} onChange={setTab} label="Model status" />
-          <ModelDialog
-            providers={(providers.data ?? []).map((provider) => ({
-              id: provider.id,
-              name: provider.display_name?.trim() || provider.name,
-            }))}
-            disabled={(providers.data ?? []).length === 0}
-          />
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            <RegistrySearch value={query} onChange={setQuery} placeholder="Search models" />
+            <ModelDialog
+              providers={(providers.data ?? []).map((provider) => ({
+                id: provider.id,
+                name: provider.display_name?.trim() || provider.name,
+              }))}
+              disabled={(providers.data ?? []).length === 0}
+            />
+          </div>
         </div>
         {/* Keyed by tab: switching tabs starts with nothing selected. */}
-        <ModelTab key={tab} status={tab} />
+        <ModelTab key={tab} status={tab} query={query} />
       </CardContent>
     </Card>
   );
 }
 
-function ModelTab({ status }: { status: RegistryStatus }) {
+function ModelTab({ status, query }: { status: RegistryStatus; query: string }) {
   const models = useModels(undefined, status);
-  const rows = React.useMemo(() => models.data ?? [], [models.data]);
+  const allRows = React.useMemo(() => models.data ?? [], [models.data]);
+  // Selection (and "select all") only ever covers the rows the filter shows.
+  const rows = React.useMemo(
+    () => allRows.filter((row) => matchesQuery(query, row.name, row.display_name)),
+    [allRows, query],
+  );
   const ids = React.useMemo(() => rows.map((row) => row.id), [rows]);
   const selection = useRowSelection(ids);
   const bulk = useBulkLifecycle("models");
@@ -80,7 +91,7 @@ function ModelTab({ status }: { status: RegistryStatus }) {
     <AsyncBoundary
       isPending={models.isPending}
       error={models.error}
-      isEmpty={rows.length === 0}
+      isEmpty={allRows.length === 0}
       skeleton={
         <div className="space-y-2">
           {Array.from({ length: 3 }, (_, index) => (
@@ -133,6 +144,13 @@ function ModelTab({ status }: { status: RegistryStatus }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-6 text-center text-sm text-muted-foreground">
+                    No models match “{query.trim()}”.
+                  </td>
+                </tr>
+              ) : null}
               {rows.map((model) => (
                 <ModelRow
                   key={model.id}

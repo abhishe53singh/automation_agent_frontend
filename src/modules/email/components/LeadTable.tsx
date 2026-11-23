@@ -12,6 +12,11 @@ import {
   Globe,
   MapPin,
   ExternalLink,
+  Pencil,
+  Save,
+  Undo2,
+  X,
+  AlertCircle,
 } from "lucide-react";
 
 import { Input } from "@/shared/ui/Input";
@@ -22,12 +27,78 @@ import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { EmptyState } from "@/shared/ui/EmptyState";
 
 import type { EmailLeadOut } from "../schemas";
-import { useDeleteEmailLead } from "../hooks";
+import type { EmailLeadEdit } from "../api";
+import { useBulkUpdateEmailLeads, useDeleteEmailLead } from "../hooks";
 
 interface LeadTableProps {
   leads: EmailLeadOut[];
   onOpenImport?: () => void;
   onOpenManualSheet?: () => void;
+}
+
+/** Editable columns, in table order. Tags are edited as comma-separated text. */
+const EDIT_FIELDS = [
+  "email",
+  "first_name",
+  "last_name",
+  "company",
+  "company_domain",
+  "company_size",
+  "title",
+  "industry",
+  "location",
+  "phone",
+  "linkedin_url",
+  "status",
+  "tags",
+] as const;
+type EditField = (typeof EDIT_FIELDS)[number];
+
+const FIELD_LABELS: Record<EditField, string> = {
+  email: "Email",
+  first_name: "First name",
+  last_name: "Last name",
+  company: "Company",
+  company_domain: "Domain / website",
+  company_size: "Company size",
+  title: "Job title",
+  industry: "Industry",
+  location: "Location",
+  phone: "Phone",
+  linkedin_url: "LinkedIn URL",
+  status: "Status",
+  tags: "Tags (comma separated)",
+};
+
+function originalValue(lead: EmailLeadOut, field: EditField): string {
+  if (field === "tags") return (lead.tags ?? []).join(", ");
+  return (lead[field] as string | null | undefined) ?? "";
+}
+
+// Same cell look as the Spreadsheet Entry sheet (ManualLeadSheet): borderless
+// inputs filling the cell, the table's grid lines form the sheet.
+const CELL_INPUT =
+  "w-full h-9 min-w-0 px-3 bg-transparent text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-inset focus:ring-primary focus:bg-primary/5 transition-colors";
+
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+/** Up/Down/Enter move to the same column in the next/previous row, like a spreadsheet. */
+function moveVertically(event: React.KeyboardEvent<HTMLElement>, row: number, col: number) {
+  const step =
+    event.key === "ArrowDown" || (event.key === "Enter" && !event.shiftKey)
+      ? 1
+      : event.key === "ArrowUp" || (event.key === "Enter" && event.shiftKey)
+        ? -1
+        : 0;
+  if (!step) return;
+  // A <select> uses the arrow keys itself.
+  if (event.currentTarget.tagName === "SELECT" && event.key !== "Enter") return;
+  const target = document.querySelector<HTMLElement>(`[data-cell="${row + step}:${col}"]`);
+  if (target) {
+    event.preventDefault();
+    target.focus();
+    if (target instanceof HTMLInputElement) target.select();
+  }
 }
 
 export function LeadTable({ leads, onOpenImport, onOpenManualSheet }: LeadTableProps) {
@@ -36,6 +107,69 @@ export function LeadTable({ leads, onOpenImport, onOpenManualSheet }: LeadTableP
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const deleteMutation = useDeleteEmailLead();
+
+  // In-page spreadsheet editing: drafts[leadId][field] = typed value.
+  const [editing, setEditing] = useState(false);
+  const [drafts, setDrafts] = useState<Record<string, Partial<Record<EditField, string>>>>({});
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const bulkUpdate = useBulkUpdateEmailLeads();
+
+  const leadById = new Map((leads || []).map((l) => [l.id, l]));
+  const isChanged = (lead: EmailLeadOut, field: EditField) => {
+    const value = drafts[lead.id]?.[field];
+    return value !== undefined && value.trim() !== originalValue(lead, field).trim();
+  };
+  const changedIds = Object.keys(drafts).filter((id) => {
+    const lead = leadById.get(id);
+    return lead && EDIT_FIELDS.some((f) => isChanged(lead, f));
+  });
+
+  const setCell = (id: string, field: EditField, value: string) => {
+    setSaveError(null);
+    setDrafts((prev) => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
+  };
+
+  const stopEditing = () => {
+    setEditing(false);
+    setDrafts({});
+    setSaveError(null);
+  };
+
+  const saveEdits = async () => {
+    const items: EmailLeadEdit[] = [];
+    for (const id of changedIds) {
+      const lead = leadById.get(id)!;
+      const item: EmailLeadEdit = { id };
+      for (const field of EDIT_FIELDS) {
+        if (!isChanged(lead, field)) continue;
+        const value = (drafts[id]![field] ?? "").trim();
+        if (field === "email") {
+          if (!value) {
+            setSaveError(`${lead.email}: email can't be empty.`);
+            return;
+          }
+          item.email = value;
+        } else if (field === "tags") {
+          item.tags = value.split(",").map((t) => t.trim()).filter(Boolean);
+        } else if (field === "status") {
+          item.status = value;
+        } else {
+          item[field] = value || null;
+        }
+      }
+      items.push(item);
+    }
+    if (items.length === 0) {
+      stopEditing();
+      return;
+    }
+    try {
+      await bulkUpdate.mutateAsync(items);
+      stopEditing();
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Could not save the changes.");
+    }
+  };
 
   const filtered = (leads || []).filter((lead) => {
     const matchesSearch =
@@ -94,7 +228,37 @@ export function LeadTable({ leads, onOpenImport, onOpenManualSheet }: LeadTableP
           />
         </div>
 
-        <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+          {editing ? (
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={stopEditing} disabled={bulkUpdate.isPending} className="gap-1.5">
+                <X className="h-3.5 w-3.5" />
+                <span>Discard</span>
+              </Button>
+              <Button size="sm" onClick={saveEdits} disabled={bulkUpdate.isPending} className="gap-1.5">
+                <Save className="h-3.5 w-3.5" />
+                <span>
+                  {bulkUpdate.isPending
+                    ? "Saving…"
+                    : changedIds.length
+                      ? `Save changes (${changedIds.length})`
+                      : "Done"}
+                </span>
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditing(true)}
+              className="gap-1.5"
+              title="Edit contacts directly in the table, like a spreadsheet"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              <span>Edit contacts</span>
+            </Button>
+          )}
+
           <span className="text-xs text-muted-foreground">
             Showing <strong>{filtered.length}</strong> of <strong>{leads.length}</strong> contacts
           </span>
@@ -112,11 +276,33 @@ export function LeadTable({ leads, onOpenImport, onOpenManualSheet }: LeadTableP
         </div>
       </div>
 
+      {editing && (
+        <div
+          className={`rounded-lg border px-3 py-2 text-xs ${
+            saveError
+              ? "border-destructive/40 bg-destructive/10 text-destructive"
+              : "border-primary/30 bg-primary/5 text-muted-foreground"
+          }`}
+          role={saveError ? "alert" : "status"}
+        >
+          {saveError ??
+            "Editing: change any cell, then Save. Changed cells are highlighted; all rows are saved together, or none if one is invalid."}
+        </div>
+      )}
+
       {/* Comprehensive All-Columns Lead Table (X-Scrollable) */}
       <Card className="overflow-hidden border border-border bg-card shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-muted/60 text-muted-foreground border-b border-border font-semibold whitespace-nowrap text-xs">
+          <table
+            className={`w-full text-left text-xs border-collapse ${
+              editing ? "[&_th]:border-border [&_td]:border-border" : ""
+            }`}
+          >
+            <thead
+              className={`text-muted-foreground border-b border-border font-semibold whitespace-nowrap text-xs ${
+                editing ? "bg-muted/95" : "bg-muted/60"
+              }`}
+            >
               <tr>
                 <th className="w-12 px-3 py-3 text-center border-r border-border/50">#</th>
                 <th className="min-w-[220px] px-4 py-3 border-r border-border/50">Email Address</th>
@@ -135,8 +321,86 @@ export function LeadTable({ leads, onOpenImport, onOpenManualSheet }: LeadTableP
                 <th className="w-14 px-3 py-3 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/60">
-              {filtered.map((lead, idx) => (
+            <tbody className={`divide-y ${editing ? "divide-border" : "divide-border/60"}`}>
+              {editing &&
+                filtered.map((lead, idx) => (
+                  <tr key={lead.id} className="group whitespace-nowrap text-xs hover:bg-muted/20 transition-colors">
+                    <td className="w-12 py-1 px-2 text-center text-muted-foreground/80 font-mono text-[11px] border-r border-border bg-muted/15">
+                      {idx + 1}
+                    </td>
+                    {EDIT_FIELDS.map((field, col) => {
+                      const value = drafts[lead.id]?.[field] ?? originalValue(lead, field);
+                      const changed = isChanged(lead, field);
+                      const invalid = field === "email" && !EMAIL_RE.test(value.trim());
+                      const tone = invalid
+                        ? "border-b-2 border-rose-500 bg-rose-500/5"
+                        : changed
+                          ? "bg-amber-500/10"
+                          : "";
+                      const label = `${FIELD_LABELS[field]} for ${lead.email}`;
+                      return (
+                        <td
+                          key={field}
+                          className="relative p-0 border-r border-border"
+                          title={changed ? `Was: ${originalValue(lead, field) || "(empty)"}` : undefined}
+                        >
+                          {field === "status" ? (
+                            <select
+                              aria-label={label}
+                              data-cell={`${idx}:${col}`}
+                              value={value}
+                              onChange={(e) => setCell(lead.id, field, e.target.value)}
+                              onKeyDown={(e) => moveVertically(e, idx, col)}
+                              className={`${CELL_INPUT} cursor-pointer appearance-none ${tone}`}
+                            >
+                              <option value="active">active</option>
+                              <option value="unsubscribed">unsubscribed</option>
+                              <option value="bounced">bounced</option>
+                            </select>
+                          ) : (
+                            <input
+                              aria-label={label}
+                              aria-invalid={invalid || undefined}
+                              data-cell={`${idx}:${col}`}
+                              type={field === "email" ? "email" : "text"}
+                              value={value}
+                              onChange={(e) => setCell(lead.id, field, e.target.value)}
+                              onKeyDown={(e) => moveVertically(e, idx, col)}
+                              className={`${CELL_INPUT} ${field === "email" ? "font-semibold" : ""} ${tone}`}
+                              spellCheck={false}
+                            />
+                          )}
+                          {invalid && (
+                            <span title="Invalid email format" className="pointer-events-none absolute right-2 top-2.5 text-rose-500">
+                              <AlertCircle className="h-4 w-4" />
+                            </span>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className="w-14 px-2 py-1 text-right">
+                      {EDIT_FIELDS.some((f) => isChanged(lead, f)) && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-muted-foreground"
+                          title="Undo changes in this row"
+                          aria-label={`Undo changes for ${lead.email}`}
+                          onClick={() =>
+                            setDrafts((prev) => {
+                              const next = { ...prev };
+                              delete next[lead.id];
+                              return next;
+                            })
+                          }
+                        >
+                          <Undo2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              {!editing && filtered.map((lead, idx) => (
                 <tr key={lead.id} className="hover:bg-muted/20 transition-colors whitespace-nowrap text-xs">
                   {/* Row index */}
                   <td className="w-12 px-3 py-3 text-center text-muted-foreground font-mono text-[11px] border-r border-border/40 bg-muted/10">

@@ -16,8 +16,16 @@ import * as React from "react";
 
 export const AGENT_SELECTION_PREFIX = "chat:agents:";
 export const TOOL_SELECTION_PREFIX = "chat:tools:";
+/** Saved characters (Tools -> Characters) attached to a chat. */
+export const CHARACTER_SELECTION_PREFIX = "chat:characters:";
+/** The User Style Profile (Tools -> Style Profiles) of a chat: at most one id. */
+export const STYLE_PROFILE_SELECTION_PREFIX = "chat:style-profile:";
 
-export type SelectionPrefix = typeof AGENT_SELECTION_PREFIX | typeof TOOL_SELECTION_PREFIX;
+export type SelectionPrefix =
+  | typeof AGENT_SELECTION_PREFIX
+  | typeof TOOL_SELECTION_PREFIX
+  | typeof CHARACTER_SELECTION_PREFIX
+  | typeof STYLE_PROFILE_SELECTION_PREFIX;
 
 export function selectionKey(prefix: SelectionPrefix, sessionId: string): string {
   return `${prefix}${sessionId}`;
@@ -162,7 +170,9 @@ function subscribe(listener: () => void): () => void {
     if (
       event.key === null ||
       event.key.startsWith(AGENT_SELECTION_PREFIX) ||
-      event.key.startsWith(TOOL_SELECTION_PREFIX)
+      event.key.startsWith(TOOL_SELECTION_PREFIX) ||
+      event.key.startsWith(CHARACTER_SELECTION_PREFIX) ||
+      event.key.startsWith(STYLE_PROFILE_SELECTION_PREFIX)
     ) {
       listener();
     }
@@ -232,4 +242,36 @@ export function useSessionToolSelection(
   tools?: ReadonlyArray<ToolLike>,
 ): [string[], (ids: string[]) => void] {
   return useSessionSelection(TOOL_SELECTION_PREFIX, sessionId, tools, pruneToolSelection);
+}
+
+/**
+ * The saved character ids attached to `sessionId` (deleted / inactive ones
+ * are dropped once `characters` is loaded), plus a persisting setter.
+ */
+export function useSessionCharacterSelection(
+  sessionId: string,
+  characters?: ReadonlyArray<AgentLike>,
+): [string[], (ids: string[]) => void] {
+  return useSessionSelection(CHARACTER_SELECTION_PREFIX, sessionId, characters, pruneAgentSelection);
+}
+
+/**
+ * The User Style Profile id of `sessionId` (null when none, or when it was
+ * deleted / deactivated), plus a persisting setter (null clears it).
+ */
+export function useSessionStyleProfile(
+  sessionId: string,
+  profiles?: ReadonlyArray<AgentLike>,
+): [string | null, (id: string | null) => void] {
+  const [ids, setIds] = useSessionSelection(
+    STYLE_PROFILE_SELECTION_PREFIX,
+    sessionId,
+    profiles,
+    pruneAgentSelection,
+  );
+  const setProfile = React.useCallback(
+    (id: string | null) => setIds(id ? [id] : []),
+    [setIds],
+  );
+  return [ids[0] ?? null, setProfile];
 }

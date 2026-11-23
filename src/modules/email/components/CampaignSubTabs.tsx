@@ -11,6 +11,7 @@ import {
   Inbox,
   Kanban,
   Settings,
+  Gauge,
 } from "lucide-react";
 import { cn } from "@/shared/lib/cn";
 
@@ -31,6 +32,7 @@ export function CampaignSubTabs({ campaignId }: CampaignSubTabsProps) {
     { label: "Inbox", href: `${basePath}/inbox`, icon: Inbox, exact: false },
     { label: "Kanban", href: `${basePath}/kanban`, icon: Kanban, exact: false },
     { label: "Settings", href: `${basePath}/settings`, icon: Settings, exact: false },
+    { label: "Usage", href: `${basePath}/usage`, icon: Gauge, exact: false },
   ];
 
   const isTabActive = (href: string, exact: boolean) => {

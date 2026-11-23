@@ -1,15 +1,56 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Play, Pause, Trash2, Settings, BarChart2 } from "lucide-react";
+import { ArrowLeft, Play, Pause, Sparkles } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import { Badge } from "@/shared/ui/Badge";
+import { useModels } from "@/modules/llm/hooks";
 import {
   useEmailCampaign,
   usePauseEmailCampaign,
   useResumeEmailCampaign,
   useStartEmailCampaign,
+  useUpdateEmailCampaign,
 } from "../hooks";
+
+/**
+ * The model that writes this campaign's AI-written sequence steps. Saved on
+ * change; a model that was deactivated since shows as "(unavailable)".
+ */
+function CampaignAiModelPicker({ campaignId, value }: { campaignId: string; value: string | null }) {
+  const { data: models, isPending } = useModels();
+  const update = useUpdateEmailCampaign(campaignId);
+  const active = (models ?? []).filter((m) => m.selectable);
+  const current = (models ?? []).find((m) => m.id === value);
+  const label = (m: { display_name?: string | null; name: string }) => m.display_name?.trim() || m.name;
+
+  return (
+    <label
+      className="flex items-center gap-2 text-xs text-muted-foreground"
+      title="Writes the emails of sequence steps with “AI-written” switched on"
+    >
+      <Sparkles className="h-3.5 w-3.5 text-primary" aria-hidden />
+      <span className="hidden sm:inline">AI model</span>
+      <select
+        aria-label="AI model for AI-written emails"
+        value={value ?? ""}
+        disabled={isPending || update.isPending}
+        onChange={(e) => update.mutate({ ai_model_id: e.target.value || null })}
+        className="h-8 w-56 truncate rounded-md border border-input bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+      >
+        <option value="">{isPending ? "Loading models…" : "No AI model"}</option>
+        {value && current && !current.selectable ? (
+          <option value={value}>{label(current)} (unavailable)</option>
+        ) : null}
+        {active.map((m) => (
+          <option key={m.id} value={m.id} title={label(m)}>
+            {label(m)}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
 
 interface CampaignHeaderProps {
   id: string;
@@ -78,7 +119,8 @@ export function CampaignHeader({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <CampaignAiModelPicker campaignId={id} value={campaign?.ai_model_id ?? null} />
           {status === "sending" && onPause && (
             <Button
               variant="outline"

@@ -57,6 +57,9 @@ export default function CampaignSettingsSubTabPage({ params }: PageProps) {
   const [windowStart, setWindowStart] = useState("09:00");
   const [windowEnd, setWindowEnd] = useState("17:00");
   const [sendDays, setSendDays] = useState<number[]>([0, 1, 2, 3, 4]);
+  const [emailFormat, setEmailFormat] = useState<"html" | "plain">("html");
+  const [researchSearches, setResearchSearches] = useState(1);
+  const [researchPages, setResearchPages] = useState(1);
   // Timezone list is read on the client only (avoids a server/client render mismatch)
   const [{ browserTz, zones }, setTzInfo] = useState({ browserTz: "UTC", zones: ["UTC"] });
   useEffect(() => setTzInfo(readBrowserTimezones()), []);
@@ -75,6 +78,9 @@ export default function CampaignSettingsSubTabPage({ params }: PageProps) {
       setWindowStart(campaign.send_window_start || "09:00");
       setWindowEnd(campaign.send_window_end || "17:00");
       setSendDays(campaign.send_days ?? [0, 1, 2, 3, 4]);
+      setEmailFormat(campaign.email_format ?? "html");
+      setResearchSearches(campaign.ai_research_searches ?? 1);
+      setResearchPages(campaign.ai_research_pages ?? 1);
     }
   }, [campaign]);
 
@@ -98,6 +104,9 @@ export default function CampaignSettingsSubTabPage({ params }: PageProps) {
       batch_size: batchSize,
       batch_delay_seconds: batchDelay,
       kanban_auto_assign: kanbanAutoAssign,
+      email_format: emailFormat,
+      ai_research_searches: researchSearches,
+      ai_research_pages: researchPages,
     });
   };
 
@@ -126,6 +135,9 @@ export default function CampaignSettingsSubTabPage({ params }: PageProps) {
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-foreground">Description</label>
             <Input value={description} onChange={(e) => setDescription(e.target.value)} />
+            <p className="text-[11px] text-muted-foreground">
+              AI-written emails use this as context about what you offer.
+            </p>
           </div>
         </div>
 
@@ -165,6 +177,83 @@ export default function CampaignSettingsSubTabPage({ params }: PageProps) {
           <span className="text-xs text-foreground font-medium">
             Auto-advance pipeline stages (Sent → Contacted, Opened → Opened, Replied → Replied)
           </span>
+        </div>
+
+        <h3 className="text-base font-semibold text-foreground pt-3 border-t border-border/40">
+          Email Format
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="radiogroup" aria-label="Email format">
+          {(
+            [
+              {
+                value: "html",
+                title: "Styled HTML",
+                text: "Formatted emails with open and click tracking. AI-written emails get a clean styled layout.",
+              },
+              {
+                value: "plain",
+                title: "Plain text",
+                text: "Looks like a personal email and often reaches the primary inbox. Opens and clicks can't be tracked.",
+              },
+            ] as const
+          ).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={emailFormat === option.value}
+              onClick={() => setEmailFormat(option.value)}
+              className={`rounded-lg border p-3 text-left transition-colors ${
+                emailFormat === option.value
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:bg-muted/40"
+              }`}
+            >
+              <div className="text-sm font-medium text-foreground">{option.title}</div>
+              <div className="mt-0.5 text-[11px] text-muted-foreground">{option.text}</div>
+            </button>
+          ))}
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          Applies to every email of this campaign, template-based and AI-written.
+        </p>
+
+        <h3 className="text-base font-semibold text-foreground pt-3 border-t border-border/40">
+          AI Lead Research
+        </h3>
+        <p className="text-xs text-muted-foreground -mt-2">
+          Before a lead&apos;s first AI-written email, look them up so the email can mention something
+          real about their company. Done once per lead; follow-ups reuse it. Set 0 to turn a source off.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-foreground">Website pages to read</label>
+            <Input
+              type="number"
+              min={0}
+              max={3}
+              value={researchPages}
+              onChange={(e) => setResearchPages(Math.min(3, Math.max(0, Number(e.target.value) || 0)))}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              The homepage from the lead&apos;s Domain / Website (or business email domain), then About /
+              Services pages. 0–3.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-foreground">News web searches</label>
+            <Input
+              type="number"
+              min={0}
+              max={3}
+              value={researchSearches}
+              onChange={(e) => setResearchSearches(Math.min(3, Math.max(0, Number(e.target.value) || 0)))}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Searches for the company&apos;s news from the last month. Each uses your daily web-search
+              quota. 0–3.
+            </p>
+          </div>
         </div>
 
         <h3 className="text-base font-semibold text-foreground pt-3 border-t border-border/40">

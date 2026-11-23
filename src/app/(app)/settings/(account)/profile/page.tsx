@@ -46,13 +46,8 @@ export default function ProfilePage() {
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">Profile</h1>
-        <p className="text-sm text-muted-foreground">
-          Your account identity and status.{" "}
-          <Link href="/settings" className="text-primary hover:underline">
-            All settings
-          </Link>
-        </p>
+        <h2 className="text-2xl font-semibold text-foreground">Profile</h2>
+        <p className="text-sm text-muted-foreground">Your account identity and status.</p>
       </div>
 
       {isPending ? (

@@ -1,6 +1,14 @@
 "use client";
 
-import { Mail, TrendingUp, BarChart3, Video, Sparkles } from "lucide-react";
+import {
+  BarChart3,
+  Mail,
+  MessageCircle,
+  PenLine,
+  Sparkles,
+  UserRound,
+  Video,
+} from "lucide-react";
 import { ToolCard } from "@/modules/email/components/ToolCard";
 import { useEmailSidebarEnabled } from "@/app/(app)/_lib/tool-sidebar";
 
@@ -17,11 +25,33 @@ const TOOLS = [
     hasSwitch: true,
   },
   {
-    id: "sales_management",
-    title: "Sales Management",
+    id: "characters",
+    title: "Characters",
     description:
-      "AI-driven lead scoring, CRM integration, deal pipelines, and automated follow-up sequences.",
-    icon: <TrendingUp className="h-6 w-6" />,
+      "Save reusable characters — how they look, dress, speak and move — and attach them in chat so every image and video keeps them consistent.",
+    icon: <UserRound className="h-6 w-6" />,
+    status: "active" as const,
+    href: "/tools/characters",
+    badgeText: "Active",
+    hasSwitch: false,
+  },
+  {
+    id: "style_profiles",
+    title: "User Style Profiles",
+    description:
+      "Capture how a person thinks, writes and responds, and attach the profile in chat so posts, emails and replies sound like them.",
+    icon: <PenLine className="h-6 w-6" />,
+    status: "active" as const,
+    href: "/tools/style-profiles",
+    badgeText: "Active",
+    hasSwitch: false,
+  },
+  {
+    id: "whatsapp_automator",
+    title: "WhatsApp Automator",
+    description:
+      "Let AI answer your customers on WhatsApp Business — instant replies to enquiries, FAQs, orders and bookings, trained on your business knowledge, with hand-off to your team when needed.",
+    icon: <MessageCircle className="h-6 w-6" />,
     status: "coming_soon" as const,
     badgeText: "Coming Soon",
     hasSwitch: false,

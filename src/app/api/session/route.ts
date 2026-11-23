@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getServerEnv } from "@/config/env";
-import { decodeJwtExpiry, getAccessToken } from "@/server/session";
+import { decodeJwtExpiry, getAccessToken, hasSessionCookie } from "@/server/session";
 import { callUpstream } from "@/server/upstream";
 
 /**
@@ -13,14 +13,20 @@ import { callUpstream } from "@/server/upstream";
  * envelope.
  */
 export async function GET(): Promise<NextResponse> {
-  const accessToken = await getAccessToken();
-  if (!accessToken) {
+  // An expired access cookie alone is not "signed out": callUpstream renews
+  // it with the refresh cookie, as every other BFF route does.
+  if (!(await hasSessionCookie())) {
     return NextResponse.json({ user: null, expires_at: null });
   }
 
   try {
     const { data } = await callUpstream<unknown>({ path: "/users/me" });
-    return NextResponse.json({ user: data, expires_at: decodeJwtExpiry(accessToken) });
+    // Read after the call: a refresh may have just rotated the token.
+    const accessToken = await getAccessToken();
+    return NextResponse.json({
+      user: data,
+      expires_at: accessToken ? decodeJwtExpiry(accessToken) : null,
+    });
   } catch (error) {
     // callUpstream already cleared the cookies when the session was dead.
     if (getServerEnv().API_DEBUG) console.error("[session] resolve failed:", error);

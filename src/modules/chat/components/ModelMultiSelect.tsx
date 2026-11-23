@@ -86,7 +86,12 @@ export function ModelMultiSelect({
         <span className="truncate">{triggerText}</span>
         <ChevronDown aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" side="top" className="max-h-80 w-72 overflow-y-auto">
+      {/* Scrolls (wheel / touch / keyboard) without a visible scrollbar. */}
+      <DropdownMenuContent
+        align="start"
+        side="top"
+        className="max-h-80 w-72 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
         <DropdownMenuCheckboxItem
           checked={value === null}
           onSelect={(event) => event.preventDefault()}
@@ -102,6 +107,8 @@ export function ModelMultiSelect({
             checked={selected.has(option.id)}
             onSelect={(event) => event.preventDefault()}
             onCheckedChange={(checked) => toggle(option.id, checked === true)}
+            // Long model ids are truncated: hover shows the full name.
+            title={option.note ? `${option.label} ${option.note}` : option.label}
           >
             <span className="truncate">{option.label}</span>
             {option.note ? (

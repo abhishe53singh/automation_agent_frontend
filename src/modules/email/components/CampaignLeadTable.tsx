@@ -8,6 +8,8 @@ import { useUpdateCampaignLeadStage, useRemoveLeadFromCampaign } from "../hooks"
 
 interface CampaignLeadTableProps {
   campaignId: string;
+  /** Campaign status: decides what a not-yet-sent lead is shown as. */
+  campaignStatus?: string;
   leads: any[];
   onOpenAssign?: () => void;
   onOpenAssignLeads?: () => void;
@@ -15,6 +17,7 @@ interface CampaignLeadTableProps {
 
 export function CampaignLeadTable({
   campaignId,
+  campaignStatus,
   leads,
   onOpenAssign,
   onOpenAssignLeads,
@@ -52,16 +55,47 @@ export function CampaignLeadTable({
     );
   }
 
+  /** A lead not emailed yet: what that means depends on the campaign's state. */
+  const unsentLabel = (): { label: string; title: string } => {
+    switch (campaignStatus) {
+      case "draft":
+        return { label: "Not started", title: "The campaign hasn't been started yet" };
+      case "scheduled":
+        return { label: "Scheduled", title: "Will be emailed when the campaign starts" };
+      case "paused":
+        return { label: "Paused", title: "Will be emailed when the campaign resumes" };
+      case "sending":
+        return { label: "Queued", title: "Waiting in line to be emailed" };
+      case "completed":
+      case "cancelled":
+        return { label: "Not sent", title: "The campaign ended before this lead was emailed" };
+      default:
+        return { label: "Not sent", title: "Not emailed yet" };
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "delivered":
-        return <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 bg-emerald-500/10 text-[10px]">Delivered</Badge>;
+      case "opened":
+      case "clicked":
+      case "replied":
+        // Engagement is shown in its own column; the email itself was delivered.
+        return <Badge variant="neutral" className="border-emerald-500/30 text-emerald-600 bg-emerald-500/10 text-[10px]">Delivered</Badge>;
+      case "sending":
+        return <Badge variant="neutral" className="border-blue-500/30 text-blue-600 bg-blue-500/10 text-[10px]">Sending</Badge>;
       case "bounced":
-        return <Badge variant="outline" className="border-destructive text-destructive bg-destructive/10 text-[10px]">Bounced</Badge>;
+        return <Badge variant="neutral" className="border-destructive text-destructive bg-destructive/10 text-[10px]">Bounced</Badge>;
       case "failed":
-        return <Badge variant="outline" className="border-rose-500/30 text-rose-600 bg-rose-500/10 text-[10px]">Failed</Badge>;
-      default:
-        return <Badge variant="outline" className="text-[10px]">Queued</Badge>;
+        return <Badge variant="neutral" className="border-rose-500/30 text-rose-600 bg-rose-500/10 text-[10px]">Failed</Badge>;
+      default: {
+        const { label, title } = unsentLabel();
+        return (
+          <Badge variant="neutral" className="text-[10px] text-muted-foreground" title={title}>
+            {label}
+          </Badge>
+        );
+      }
     }
   };
 
@@ -110,7 +144,7 @@ export function CampaignLeadTable({
                       }
                       className="h-7 rounded border border-border bg-background px-2 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                     >
-                      <option value="queued">Queued</option>
+                      <option value="queued">Not contacted</option>
                       <option value="contacted">Contacted</option>
                       <option value="opened">Opened</option>
                       <option value="replied">Replied</option>

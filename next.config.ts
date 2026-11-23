@@ -11,6 +11,13 @@ const nextConfig: NextConfig = {
   // Dev-only "N" badge: keep it off the sidebar footer (profile / sign out).
   devIndicators: { position: "bottom-right" },
   typedRoutes: true,
+  experimental: {
+    // src/proxy.ts runs on /api too, so Next buffers request bodies for it and
+    // SILENTLY TRUNCATES anything over this (default 10 MB). The largest uploads
+    // are chat attachments (25 MB, MAX_UPLOAD_SIZE_BYTES) and reply attachments
+    // (20 MB total), plus multipart overhead.
+    proxyClientMaxBodySize: "26mb",
+  },
   // `next dev` blocks /_next/* dev assets for any origin other than localhost,
   // so the page never hydrates and forms fall back to a native GET submit.
   // List the LAN IPs / tunnel hosts you share the dev server through.

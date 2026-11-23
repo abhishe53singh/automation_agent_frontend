@@ -1,16 +1,22 @@
 "use client";
 
+import { useState } from "react";
 import { CheckCircle2, Clock, XCircle, AlertCircle, Eye, MousePointerClick } from "lucide-react";
+import { LeadSentEmailsDialog } from "./LeadSentEmailsDialog";
 import { Badge } from "@/shared/ui/Badge";
 import { Card } from "@/shared/ui/Card";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import type { EmailSendOut } from "../schemas";
 
 interface SendLogTableProps {
+  campaignId: string;
   sends: EmailSendOut[];
 }
 
-export function SendLogTable({ sends }: SendLogTableProps) {
+export function SendLogTable({ campaignId, sends }: SendLogTableProps) {
+  // Clicking a row opens the emails sent to that lead.
+  const [openSend, setOpenSend] = useState<EmailSendOut | null>(null);
+
   if (!sends || sends.length === 0) {
     return (
       <EmptyState
@@ -49,7 +55,19 @@ export function SendLogTable({ sends }: SendLogTableProps) {
           </thead>
           <tbody className="divide-y divide-border/40">
             {sends.map((send) => (
-              <tr key={send.id} className="hover:bg-muted/20 transition-colors">
+              <tr
+                key={send.id}
+                className="cursor-pointer hover:bg-muted/20 transition-colors focus-visible:outline-none focus-visible:bg-muted/30"
+                tabIndex={0}
+                onClick={() => setOpenSend(send)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setOpenSend(send);
+                  }
+                }}
+                title="Show the emails sent to this lead"
+              >
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1.5 font-medium capitalize">
                     {getStatusIcon(send.status)}
@@ -92,6 +110,12 @@ export function SendLogTable({ sends }: SendLogTableProps) {
           </tbody>
         </table>
       </div>
+      <LeadSentEmailsDialog
+        campaignId={campaignId}
+        sendId={openSend?.id ?? null}
+        leadLabel={openSend?.lead_name || openSend?.lead_email}
+        onClose={() => setOpenSend(null)}
+      />
     </Card>
   );
 }

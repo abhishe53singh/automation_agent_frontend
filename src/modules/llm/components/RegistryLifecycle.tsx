@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Search } from "lucide-react";
 
 import { usePurgePreview } from "../hooks";
 import type { RegistryStatus } from "../schemas";
@@ -190,6 +191,41 @@ export function LifecycleActions({
  * Checkbox selection over the rows currently shown. Ids that leave the list
  * (moved to another tab after an action) drop out automatically.
  */
+/** Search box shown beside the "Add" buttons; filters the visible rows. */
+export function RegistrySearch({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <div className="relative w-full sm:w-64">
+      <Search
+        aria-hidden
+        className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+      />
+      <Input
+        type="search"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        className="pl-8"
+      />
+    </div>
+  );
+}
+
+/** Case-insensitive match of `query` against any of the given fields. */
+export function matchesQuery(query: string, ...fields: (string | null | undefined)[]) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  return fields.some((field) => field?.toLowerCase().includes(needle));
+}
+
 export function useRowSelection(visibleIds: string[]) {
   const [picked, setPicked] = React.useState<Set<string>>(() => new Set());
   const visible = React.useMemo(() => new Set(visibleIds), [visibleIds]);
